@@ -9,7 +9,6 @@ import { ATTESTED_GIT_KILL_GRACE_MS, ATTESTED_GIT_MAX_OUTPUT_BYTES, ATTESTED_TAS
 import { closeAndFsyncOutputStream, writeFileFsynced, writeJsonAtomic } from './task-durable.js';
 import { assertWindowsCommandLineWithinLimit, piLaunchArgv, resolvePiLaunch, } from './pi-launch.js';
 import { BackgroundTaskExtensionServiceClosedError } from './extension-api.js';
-import { resolveAnthropicAttributionExtensionPath } from './anthropic-attribution-path.js';
 import { createReloadableShellExecutionV1, RELOAD_SHELL_OWNER_PROTOCOL, } from './reload-shell-owner.js';
 import { runWindowsTaskkill, } from './windows-taskkill.js';
 export const MAX_OUTPUT_BYTES = Number(process.env['PI_BG_MAX_OUTPUT_BYTES'] ?? 20 * 1024 * 1024);
@@ -1755,8 +1754,7 @@ export class BackgroundTaskRegistry {
         this.assertTaskAdmissionOpen('an attested Pi task', admission);
         const attested = await this.awaitTaskAdmissionBoundary(this.loadAttestedRuntime(), admission);
         this.assertTaskAdmissionOpen('an attested Pi task', admission);
-        const attributionExtensionPath = request.provider === 'anthropic' ? resolveAnthropicAttributionExtensionPath() : undefined;
-        const argv = attested.buildAttestedPiArgv(request, attributionExtensionPath);
+        const argv = attested.buildAttestedPiArgv(request);
         const attestedPiLaunch = resolvePiLaunch({ platform: this.platform });
         assertWindowsCommandLineWithinLimit(attestedPiLaunch, argv.slice(1), this.platform, 'attested-pi-run');
         const dir = await this.awaitTaskAdmissionBoundary(this.ensureRuntimeDir(ctx), admission);

@@ -3262,10 +3262,6 @@ setInterval(() => {}, 1000);
         assert.notEqual(spawn.shell, admittedPi, 'POSIX launch must pin the canonical target');
       }
       assert.equal(spawn.options.shell, false);
-      assert.equal(spawn.options.env?.['OPENAI_API_KEY'], undefined);
-      assert.equal(spawn.options.env?.['OPENAI_BASE_URL'], undefined);
-      assert.equal(spawn.options.env?.['ANTHROPIC_API_KEY'], undefined);
-      assert.equal(spawn.options.env?.['OPENROUTER_API_KEY'], undefined);
       assert.deepEqual(piArgs, [
         '--mode',
         'json',
@@ -3416,7 +3412,7 @@ setInterval(() => {}, 1000);
     }
   });
 
-  void it('strips metered API environment from attested Pi child process', async () => {
+  void it('passes API credentials through to the attested Pi child process', async () => {
     const h = await createHarness({
       modelRegistry: oauthRegistry(),
       env: {
@@ -3452,7 +3448,7 @@ setInterval(() => {}, 1000);
         'PI_API_KEY',
         'PI_AUTH_FILE',
       ]) {
-        assert.equal(spawn.options.env?.[key], undefined, `${key} must be stripped`);
+        assert.notEqual(spawn.options.env?.[key], undefined, `${key} must be inherited`);
       }
       spawn.child.writeStdout(piJsonEvents());
       spawn.child.close(0, null);

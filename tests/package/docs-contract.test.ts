@@ -69,7 +69,7 @@ void describe('docs package integration contract', () => {
         fusion: byId.get('tool:fusion_reason')?.availability,
         result: byId.get('tool:bg_result')?.availability,
         attested: byId.get('tool:bg_run_pi_attested')?.availability,
-        attribution: byId.get('command:claude-cache')?.availability,
+        cacheCommand: byId.get('command:claude-cache')?.availability,
         defaultDock: byId.get('shortcut:shift+down')?.availability,
         alternateDock: byId.get('shortcut:ctrl+alt+b')?.availability,
       },
@@ -78,7 +78,7 @@ void describe('docs package integration contract', () => {
         fusion: 'feature:fusion',
         result: 'any(feature:delegate,feature:fusion)',
         attested: 'feature:attested',
-        attribution: 'feature:attribution',
+        cacheCommand: undefined,
         defaultDock: 'dock:shift+down',
         alternateDock: 'dock:ctrl+alt+b',
       },
@@ -148,7 +148,7 @@ void describe('docs package integration contract', () => {
         ]),
       ],
       ['attested', new Set(['tool:bg_run_pi_attested'])],
-      ['attribution', new Set(['command:claude-cache'])],
+      ['attribution', new Set<string>()],
     ]);
     const optional = [...byFeature.keys()];
     const docks = ['shift+down', 'ctrl+alt+b', 'off'] as const;
@@ -190,19 +190,14 @@ void describe('docs package integration contract', () => {
   void it('states the initialized-host SDK boundary without narrowing the blocker', () => {
     const gettingStarted = text('docs/getting-started.md');
     const configuration = text('docs/operations/configuration.md');
-    const attribution = text('docs/subsystems/anthropic-attribution.md');
     const eventBus = text('docs/api/eventbus-v1.md');
-    const cacheCommand = text('docs/commands/claude-cache.md');
 
     assert.match(gettingStarted, /SDK embedding requirement/i);
     assert.match(gettingStarted, /at least one counted binding/i);
     assert.match(configuration, /bindExtensions\(\)/);
     assert.match(configuration, /after every `reload\(\)`/i);
-    assert.match(attribution, /BLOCKED_SCOPE/);
-    assert.match(attribution, /bare `createAgentSession\(\)`/);
     assert.match(eventBus, /normal Pi TUI, RPC, print, and JSON modes/i);
-    assert.match(cacheCommand, /bare SDK sessions and empty\/mode-only reloads require/i);
-    for (const prose of [gettingStarted, configuration, attribution, eventBus, cacheCommand]) {
+    for (const prose of [gettingStarted, configuration, eventBus]) {
       assert.match(prose, /initialized-host contract/i);
       assert.match(prose, /not a pre-bind availability guarantee/i);
     }

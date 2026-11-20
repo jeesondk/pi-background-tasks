@@ -63,7 +63,6 @@ import {
   type PiLaunchSpec,
 } from './pi-launch.js';
 import { BackgroundTaskExtensionServiceClosedError } from './extension-api.js';
-import { resolveAnthropicAttributionExtensionPath } from './anthropic-attribution-path.js';
 import {
   createReloadableShellExecutionV1,
   RELOAD_SHELL_OWNER_PROTOCOL,
@@ -2248,9 +2247,7 @@ export class BackgroundTaskRegistry {
     this.assertTaskAdmissionOpen('an attested Pi task', admission);
     const attested = await this.awaitTaskAdmissionBoundary(this.loadAttestedRuntime(), admission);
     this.assertTaskAdmissionOpen('an attested Pi task', admission);
-    const attributionExtensionPath =
-      request.provider === 'anthropic' ? resolveAnthropicAttributionExtensionPath() : undefined;
-    const argv = attested.buildAttestedPiArgv(request, attributionExtensionPath);
+    const argv = attested.buildAttestedPiArgv(request);
     const attestedPiLaunch = resolvePiLaunch({ platform: this.platform });
     assertWindowsCommandLineWithinLimit(
       attestedPiLaunch,

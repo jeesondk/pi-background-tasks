@@ -6,10 +6,10 @@ import { Type } from 'typebox';
 import { FUSION_TOOL_CALL_LOG_SCHEMA_VERSION, FUSION_WEB_FETCH_TOOL_NAME, } from './core/fusion/types.js';
 import { fusionWebFetch, FusionWebFetchError, FUSION_WEB_FETCH_TIMEOUT_MS, } from './core/fusion/web-fetch.js';
 import { canonicalizeFusionPublicUrl, parseFusionSourcePolicy, } from './core/fusion/source-policy.js';
-import { applyFusionClaudePromptCachingScopeHeader, nonAnthropicFusionCacheObservation, normalizeFusionClaudeCachePayload, } from './core/fusion/claude-cache.js';
+import { nonAnthropicFusionCacheObservation, normalizeFusionClaudeCachePayload, } from './core/fusion/claude-cache.js';
 import { FUSION_CANDIDATE_OUTPUT_RECOVERY_PATH_ENV, FUSION_CHILD_MAX_PROVIDER_REQUESTS, FUSION_CHILD_MAX_TOOL_CALLS, FUSION_CHILD_MAX_TOTAL_TOOL_RESULT_BYTES, FUSION_CHILD_RESULT_PREFIX, FUSION_CHILD_SETTLEMENT_PREFIX, FUSION_RESEARCH_ENABLED_ENV, FUSION_RUNTIME_GUARD_PREFIX, FUSION_RUNTIME_GUARD_SCHEMA_VERSION, FUSION_SOURCE_POLICY_PATH_ENV, FUSION_SOURCE_POLICY_SHA256_ENV, FUSION_TOOL_CALL_LOG_PATH_ENV, FUSION_TOOL_CALL_SEAL_SCHEMA_VERSION, FUSION_TOOL_CALL_SEAL_SUFFIX, buildFusionChildResultMetadata, buildFusionChildSettlement, } from './core/fusion/child-protocol.js';
 import { FUSION_CANDIDATE_MAX_OUTPUT_BYTES, FUSION_CANDIDATE_OUTPUT_COMPRESSION_PROMPT, fusionJsonRenderedTextBytes, } from './core/fusion/output-contract.js';
-export { FUSION_CLAUDE_CACHE_BREAKPOINT_LIMIT, FUSION_CLAUDE_CACHE_DEFAULT_RETENTION, FUSION_CLAUDE_CACHE_OBSERVATION_SCHEMA_VERSION, FUSION_CLAUDE_CACHE_RETENTION_ENV, FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA, applyFusionClaudePromptCachingScopeHeader, nonAnthropicFusionCacheObservation, normalizeFusionClaudeCachePayload, resolveFusionClaudeCachePolicy, } from './core/fusion/claude-cache.js';
+export { FUSION_CLAUDE_CACHE_BREAKPOINT_LIMIT, FUSION_CLAUDE_CACHE_DEFAULT_RETENTION, FUSION_CLAUDE_CACHE_OBSERVATION_SCHEMA_VERSION, FUSION_CLAUDE_CACHE_RETENTION_ENV, nonAnthropicFusionCacheObservation, normalizeFusionClaudeCachePayload, resolveFusionClaudeCachePolicy, } from './core/fusion/claude-cache.js';
 export { FUSION_CANDIDATE_OUTPUT_RECOVERY_PATH_ENV, FUSION_CHILD_MAX_PROVIDER_REQUESTS, FUSION_CHILD_MAX_TOOL_CALLS, FUSION_CHILD_MAX_TOTAL_TOOL_RESULT_BYTES, FUSION_CHILD_RESULT_PREFIX, FUSION_CHILD_RESULT_SCHEMA_VERSION, FUSION_CHILD_SETTLEMENT_PREFIX, FUSION_CHILD_SETTLEMENT_SCHEMA_VERSION, FUSION_RESEARCH_ENABLED_ENV, FUSION_RUNTIME_GUARD_PREFIX, FUSION_RUNTIME_GUARD_SCHEMA_VERSION, FUSION_SOURCE_POLICY_PATH_ENV, FUSION_SOURCE_POLICY_SHA256_ENV, FUSION_TOOL_CALL_LOG_PATH_ENV, FUSION_TOOL_CALL_SEAL_SCHEMA_VERSION, FUSION_TOOL_CALL_SEAL_SUFFIX, buildFusionChildResultMetadata, buildFusionChildSettlement, } from './core/fusion/child-protocol.js';
 export { FUSION_CANDIDATE_MAX_OUTPUT_BYTES, FUSION_CANDIDATE_OUTPUT_COMPRESSION_PROMPT, fusionJsonRenderedTextBytes, } from './core/fusion/output-contract.js';
 const FUSION_CHILD_O_NOFOLLOW = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0;
@@ -403,11 +403,6 @@ export default function fusionChildExtension(pi) {
     let settlementPublished = false;
     const childResultRecords = [];
     let pendingCacheObservation;
-    pi.on('before_provider_headers', (event, ctx) => {
-        if (ctx.model?.provider !== 'anthropic')
-            return;
-        applyFusionClaudePromptCachingScopeHeader(event.headers);
-    });
     pi.on('before_provider_request', async (event, ctx) => {
         providerRequestCount += 1;
         if (runtimeGuardFailed) {

@@ -3,7 +3,6 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
-import type { Context } from '@earendil-works/pi-ai';
 import {
   createAgentSession,
   createEventBus,
@@ -25,14 +24,10 @@ import {
   BG_RESPONSE_SCHEMA,
 } from '../../src/core/extension-api.js';
 
-const ambientAttributionPath = resolve('extensions/anthropic-attribution.ts');
-const childAttributionPath = resolve('extensions/anthropic-attribution-child.ts');
 const backgroundPath = resolve('extensions/background-tasks.ts');
-const compiledAmbientAttributionPath = resolve('dist/extensions/anthropic-attribution.js');
 const compiledBackgroundPath = resolve('dist/extensions/background-tasks.js');
 const shortcutOwnerPath = resolve('tests/fixtures/shortcut-owner.ts');
 const featureToolCollisionsPath = resolve('tests/fixtures/feature-tool-collisions.ts');
-const attributionCopyPath = resolve('tests/fixtures/anthropic-attribution-copy.ts');
 const FEATURE_ENV_KEYS = ['PI_BG_FEATURES', 'PI_BG_DOCK_SHORTCUT'] as const;
 const roots: string[] = [];
 const originalEnv = new Map<string, string | undefined>(
@@ -107,7 +102,6 @@ function expectedInventory(
     commands.push(...FUSION_COMMANDS);
     renderers.push('fusion-result');
   }
-  if (features.has('attribution')) commands.push('claude-cache');
   if (shortcut !== 'off') shortcuts.push(shortcut);
   return {
     tools: sorted(tools),
@@ -140,11 +134,7 @@ async function loadPackage(
     agentDir,
     settingsManager: SettingsManager.inMemory(),
     eventBus: createEventBus(),
-    additionalExtensionPaths: options.paths ?? [
-      ambientAttributionPath,
-      ...(options.extraPaths ?? []),
-      backgroundPath,
-    ],
+    additionalExtensionPaths: options.paths ?? [...(options.extraPaths ?? []), backgroundPath],
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,
@@ -183,11 +173,7 @@ async function makeSession(
     agentDir,
     settingsManager,
     eventBus,
-    additionalExtensionPaths: options.paths ?? [
-      ambientAttributionPath,
-      ...extraPaths,
-      backgroundPath,
-    ],
+    additionalExtensionPaths: options.paths ?? [...extraPaths, backgroundPath],
     noExtensions: true,
     noSkills: true,
     noPromptTemplates: true,
@@ -223,23 +209,6 @@ async function makeSession(
     });
   }
   return { session: created.session, loader, eventBus, modelRuntime, cwd, agentDir };
-}
-
-function attributionClaimCount(eventBus: EventBus): number {
-  let count = 0;
-  eventBus.emit('pi-anthropic-attribution:claim:v1', {
-    schema_version: 'pi-anthropic-attribution.claim.v1',
-    acknowledge: () => {
-      count += 1;
-    },
-  });
-  return count;
-}
-
-function hasCacheCommand(session: AgentSession): boolean {
-  return session.extensionRunner
-    .getRegisteredCommands()
-    .some((command) => command.invocationName === 'claude-cache');
 }
 
 function sessionInventory(session: AgentSession): RegistrationInventory {
@@ -314,7 +283,7 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
   void it('loads the compiled distribution entrypoints with the complete default surface', async () => {
     configure(undefined, undefined);
     const { session } = await makeSession([], {
-      paths: [compiledAmbientAttributionPath, compiledBackgroundPath],
+      paths: [compiledBackgroundPath],
     });
     try {
       const all = new Set(['process', 'delegate', 'fusion', 'attested', 'attribution']);
@@ -327,7 +296,7 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
   void it('loads compiled process-only mode without advanced registrations', async () => {
     configure('process', 'off');
     const { session } = await makeSession([], {
-      paths: [compiledAmbientAttributionPath, compiledBackgroundPath],
+      paths: [compiledBackgroundPath],
     });
     try {
       assert.deepEqual(sessionInventory(session), expectedInventory(new Set(['process']), 'off'));
@@ -411,358 +380,6 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
     }
   });
 
-  void it('keeps ambient attribution off while the explicit child entry remains mandatory', async () => {
-    configure('process', 'off');
-    const ambient = await loadPackage({ paths: [ambientAttributionPath] });
-    assert.deepEqual(ambient.result.errors, []);
-    assert.deepEqual(inventory(ambient.result), {
-      tools: [],
-      commands: [],
-      shortcuts: [],
-      renderers: [],
-    });
-    assert.equal(ambient.result.runtime.pendingProviderRegistrations.length, 0);
-    assert.equal(
-      ambient.result.extensions.reduce(
-        (count, extension) => count + [...extension.handlers.values()].flat().length,
-        0,
-      ),
-      0,
-    );
-
-    const child = await loadPackage({ paths: [childAttributionPath] });
-    assert.deepEqual(child.result.errors, []);
-    assert.deepEqual(inventory(child.result).commands, ['claude-cache']);
-    assert.equal(child.result.runtime.pendingProviderRegistrations.length, 1);
-    assert.equal(child.result.runtime.pendingProviderRegistrations[0]?.name, 'anthropic');
-    assert.ok(
-      child.result.extensions.reduce(
-        (count, extension) => count + [...extension.handlers.values()].flat().length,
-        0,
-      ) >= 3,
-    );
-  });
-
-  void it('restores preexisting public config, routing, auth, stream, and future merges', async () => {
-    configure('process,attribution', 'off');
-    const routeContext: Context = {
-      systemPrompt: 'provider route fixture',
-      messages: [],
-      tools: [],
-    };
-    const routeCalls: Array<{
-      baseUrl: string | undefined;
-      contextIdentity: boolean;
-      sessionId: string | undefined;
-      apiKeyMatches: boolean;
-      hostHeader: string | null | undefined;
-    }> = [];
-    const hostStream: NonNullable<
-      NonNullable<ReturnType<ModelRuntime['getRegisteredProviderConfig']>>['streamSimple']
-    > = (model, context, options) => {
-      routeCalls.push({
-        baseUrl: model.baseUrl,
-        contextIdentity: context === routeContext,
-        sessionId: options?.sessionId,
-        apiKeyMatches: options?.apiKey === 'host-secret-marker',
-        hostHeader: options?.headers?.['x-host-route'],
-      });
-      throw new Error('host-route-invoked');
-    };
-    const { session, modelRuntime } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        runtime.registerProvider('anthropic', {
-          api: 'anthropic-messages',
-          apiKey: 'host-secret-marker',
-          baseUrl: 'https://host-route.invalid/v1',
-          headers: { 'x-host-route': 'original' },
-          streamSimple: hostStream,
-        });
-      },
-    });
-    try {
-      assert.notEqual(
-        modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple,
-        hostStream,
-        'package provider must be installed while attribution is enabled',
-      );
-      configure('process', 'off');
-      await session.reload();
-      const restored = modelRuntime.getRegisteredProviderConfig('anthropic');
-      assert.equal(restored?.streamSimple, hostStream);
-      assert.equal(restored?.baseUrl, 'https://host-route.invalid/v1');
-      assert.equal(restored?.headers?.['x-host-route'], 'original');
-      assert.equal((await modelRuntime.getAuth('anthropic'))?.auth.apiKey, 'host-secret-marker');
-
-      const model = modelRuntime
-        .getModels('anthropic')
-        .find((candidate) => candidate.api === 'anthropic-messages');
-      assert.ok(model, 'fixture requires an Anthropic messages model');
-      const restoredResult = await modelRuntime
-        .streamSimple(model, routeContext, { sessionId: 'restored-route' })
-        .result();
-      assert.equal(restoredResult.stopReason, 'error');
-      assert.match(restoredResult.errorMessage ?? '', /host-route-invoked/);
-
-      modelRuntime.registerProvider('anthropic', {
-        baseUrl: 'https://future-merge.invalid/v1',
-      });
-      const future = modelRuntime.getRegisteredProviderConfig('anthropic');
-      assert.equal(future?.streamSimple, hostStream);
-      assert.equal(future?.headers?.['x-host-route'], 'original');
-      assert.equal(future?.baseUrl, 'https://future-merge.invalid/v1');
-      assert.equal((await modelRuntime.getAuth('anthropic'))?.auth.apiKey, 'host-secret-marker');
-      const futureModel = modelRuntime
-        .getModels('anthropic')
-        .find((candidate) => candidate.api === 'anthropic-messages');
-      assert.ok(futureModel, 'future merge must retain an Anthropic messages model');
-      const futureResult = await modelRuntime
-        .streamSimple(futureModel, routeContext, { sessionId: 'future-route' })
-        .result();
-      assert.equal(futureResult.stopReason, 'error');
-      assert.match(futureResult.errorMessage ?? '', /host-route-invoked/);
-      assert.deepEqual(routeCalls, [
-        {
-          baseUrl: 'https://host-route.invalid/v1',
-          contextIdentity: true,
-          sessionId: 'restored-route',
-          apiKeyMatches: true,
-          hostHeader: 'original',
-        },
-        {
-          baseUrl: 'https://future-merge.invalid/v1',
-          contextIdentity: true,
-          sessionId: 'future-route',
-          apiKeyMatches: true,
-          hostHeader: 'original',
-        },
-      ]);
-    } finally {
-      await closeSession(session);
-    }
-  });
-
-  void it('restores exact public absence when no dynamic provider existed before activation', async () => {
-    configure('process,attribution', 'off');
-    let builtinProvider: ReturnType<ModelRuntime['getProvider']>;
-    const { session, modelRuntime } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        assert.equal(runtime.getRegisteredProviderConfig('anthropic'), undefined);
-        assert.equal(runtime.getRegisteredNativeProvider('anthropic'), undefined);
-        builtinProvider = runtime.getProvider('anthropic');
-        assert.ok(builtinProvider, 'fixture requires the built-in Anthropic provider');
-      },
-    });
-    try {
-      assert.ok(modelRuntime.getRegisteredProviderConfig('anthropic'));
-      configure('process', 'off');
-      await session.reload();
-      assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
-      assert.equal(modelRuntime.getRegisteredProviderIds().includes('anthropic'), false);
-      assert.equal(modelRuntime.getProvider('anthropic'), builtinProvider);
-    } finally {
-      await closeSession(session);
-    }
-  });
-
-  void it('accepts a host-refreshed built-in while restoring exact dynamic absence', async () => {
-    configure('process,attribution', 'off');
-    const extensionErrors: Array<{ event: string; error: string }> = [];
-    let originalBuiltin: ReturnType<ModelRuntime['getProvider']>;
-    let refreshedBuiltin: ReturnType<ModelRuntime['getProvider']>;
-    const { session, modelRuntime } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        const originalGetProvider = runtime.getProvider.bind(runtime);
-        const originalUnregisterProvider = runtime.unregisterProvider.bind(runtime);
-        originalBuiltin = originalGetProvider('anthropic');
-        assert.ok(originalBuiltin, 'fixture requires the built-in Anthropic provider');
-
-        const getProvider: ModelRuntime['getProvider'] = (providerId) => {
-          if (
-            providerId === 'anthropic' &&
-            refreshedBuiltin !== undefined &&
-            runtime.getRegisteredProviderConfig(providerId) === undefined &&
-            runtime.getRegisteredNativeProvider(providerId) === undefined
-          ) {
-            return refreshedBuiltin;
-          }
-          return originalGetProvider(providerId);
-        };
-        runtime.getProvider = getProvider;
-        runtime.unregisterProvider = (providerId) => {
-          originalUnregisterProvider(providerId);
-          if (providerId !== 'anthropic') return;
-          const currentBuiltin = originalGetProvider(providerId);
-          assert.ok(currentBuiltin, 'host refresh fixture requires the restored built-in');
-          refreshedBuiltin = Object.freeze({
-            ...currentBuiltin,
-            name: `${currentBuiltin.name} refreshed`,
-          });
-        };
-      },
-      onExtensionError: (error) => extensionErrors.push(error),
-    });
-    try {
-      assert.ok(modelRuntime.getRegisteredProviderConfig('anthropic'));
-      configure('process', 'off');
-      await session.reload();
-      assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
-      assert.equal(modelRuntime.getRegisteredProviderIds().includes('anthropic'), false);
-      assert.ok(refreshedBuiltin);
-      assert.notEqual(refreshedBuiltin, originalBuiltin);
-      assert.equal(modelRuntime.getProvider('anthropic'), refreshedBuiltin);
-      assert.deepEqual(extensionErrors, []);
-    } finally {
-      await closeSession(session);
-    }
-  });
-
-  void it('restores a preexisting native provider object by exact public identity', async () => {
-    configure('process,attribution', 'off');
-    let nativeProvider: ReturnType<ModelRuntime['getProvider']>;
-    const { session, modelRuntime } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        nativeProvider = runtime.getProvider('anthropic');
-        assert.ok(nativeProvider);
-        runtime.registerNativeProvider(nativeProvider);
-      },
-    });
-    try {
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
-      configure('process', 'off');
-      await session.reload();
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), nativeProvider);
-      assert.equal(modelRuntime.getProvider('anthropic'), nativeProvider);
-    } finally {
-      await closeSession(session);
-    }
-  });
-
-  void it('does not remove a provider owner installed after this attribution instance', async () => {
-    configure('process,attribution', 'off');
-    function laterStream(): never {
-      throw new Error('later owner marker');
-    }
-    const { session, modelRuntime } = await makeSession();
-    let shutdown = false;
-    try {
-      modelRuntime.registerProvider('anthropic', {
-        api: 'anthropic-messages',
-        streamSimple: laterStream,
-      });
-      assert.equal(
-        modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple,
-        laterStream,
-      );
-      await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-      shutdown = true;
-      assert.equal(
-        modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple,
-        laterStream,
-        'later dynamic owner must survive package shutdown',
-      );
-      assert.ok(modelRuntime.getProvider('anthropic'), 'later provider must remain effective');
-    } finally {
-      if (!shutdown)
-        await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-      session.dispose();
-    }
-  });
-
-  void it('does not remove a later native provider owner', async () => {
-    configure('process,attribution', 'off');
-    let hostProvider: ReturnType<ModelRuntime['getProvider']>;
-    const { session, modelRuntime } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        hostProvider = runtime.getProvider('anthropic');
-        assert.ok(hostProvider);
-      },
-    });
-    assert.ok(hostProvider);
-    const laterNative = Object.freeze({
-      ...hostProvider,
-      name: `${hostProvider.name} later-owner`,
-    });
-    let shutdown = false;
-    try {
-      modelRuntime.registerNativeProvider(laterNative);
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), laterNative);
-      await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-      shutdown = true;
-      assert.equal(modelRuntime.getRegisteredNativeProvider('anthropic'), laterNative);
-      assert.equal(modelRuntime.getProvider('anthropic'), laterNative);
-      assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
-    } finally {
-      if (!shutdown)
-        await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-      session.dispose();
-    }
-  });
-
-  void it('publishes no attribution owner or command when immediate provider installation fails', async () => {
-    configure('process,attribution', 'off');
-    function hostStream(): never {
-      throw new Error('failure host marker');
-    }
-    let packageRegistrationFailures = 0;
-    const extensionErrors: Array<{ event: string; error: string }> = [];
-    const { session, modelRuntime, eventBus } = await makeSession([], {
-      setupModelRuntime: (runtime) => {
-        runtime.registerProvider('anthropic', {
-          api: 'anthropic-messages',
-          streamSimple: hostStream,
-        });
-        const realRegister = runtime.registerProvider.bind(runtime);
-        const rejectingRegister: ModelRuntime['registerProvider'] = (
-          providerId,
-          providerConfig,
-        ) => {
-          if (providerId === 'anthropic' && providerConfig.streamSimple !== hostStream) {
-            packageRegistrationFailures += 1;
-            throw new Error('fixture rejects package provider registration');
-          }
-          realRegister(providerId, providerConfig);
-        };
-        runtime.registerProvider = rejectingRegister;
-      },
-      onExtensionError: (error) => extensionErrors.push(error),
-    });
-    try {
-      let claimAcks = 0;
-      eventBus.emit('pi-anthropic-attribution:claim:v1', {
-        schema_version: 'pi-anthropic-attribution.claim.v1',
-        acknowledge: () => {
-          claimAcks += 1;
-        },
-      });
-      assert.equal(packageRegistrationFailures, 1);
-      assert.ok(
-        extensionErrors.some(
-          (error) => error.event === 'session_start' && /fixture rejects/.test(error.error),
-        ),
-        `expected session_start installation error: ${JSON.stringify(extensionErrors)}`,
-      );
-      assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple, hostStream);
-      assert.equal(
-        session.extensionRunner
-          .getRegisteredCommands()
-          .some((command) => command.invocationName === 'claude-cache'),
-        false,
-      );
-      assert.equal(claimAcks, 0, 'failed installation must not publish attribution ownership');
-      await session.extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' });
-      assert.equal(
-        modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple,
-        hostStream,
-        'failed installer cleanup must leave the host provider untouched',
-      );
-    } finally {
-      session.dispose();
-    }
-  });
-
   void it('preserves active external tools that collide with disabled package capability names', async () => {
     configure('process', 'off');
     const { session } = await makeSession([featureToolCollisionsPath]);
@@ -785,128 +402,23 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
     }
   });
 
-  void it('keeps an independent ambient copy inert after one successful owner installs', async () => {
-    configure('process,attribution', 'off');
-    const { session, eventBus } = await makeSession([attributionCopyPath]);
-    try {
-      const cacheCommands = session.extensionRunner
-        .getRegisteredCommands()
-        .filter((command) => command.name === 'claude-cache');
-      assert.equal(cacheCommands.length, 1, 'duplicate copies must expose one cache command');
-      let claimAcks = 0;
-      eventBus.emit('pi-anthropic-attribution:claim:v1', {
-        schema_version: 'pi-anthropic-attribution.claim.v1',
-        acknowledge: () => {
-          claimAcks += 1;
-        },
-      });
-      assert.equal(claimAcks, 1, 'duplicate copies must publish one successful owner');
-    } finally {
-      await closeSession(session);
-    }
-  });
-
-  void it('characterizes counted host bindings versus bare, empty, and mode-only SDK paths', async () => {
-    configure('process,attribution', 'off');
+  void it('never registers an Anthropic provider override, bound or unbound', async () => {
+    configure('process,delegate,fusion,attested,attribution', 'off');
     const bare = await makeSession([], { skipBind: true });
     try {
-      assert.equal(attributionClaimCount(bare.eventBus), 0, 'bare createAgentSession is blocked');
-      assert.equal(hasCacheCommand(bare.session), false);
       assert.equal(bare.modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
       assert.equal(bare.modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
+      await bare.session.bindExtensions({ mode: 'print' });
+      assert.equal(bare.modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
+      assert.equal(bare.modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
+      assert.equal(
+        bare.session.extensionRunner
+          .getRegisteredCommands()
+          .some((command) => command.invocationName === 'claude-cache'),
+        false,
+      );
     } finally {
       await closeSession(bare.session);
-    }
-
-    configure('process,attribution', 'off');
-    const empty = await makeSession([], { skipBind: true });
-    try {
-      await empty.session.bindExtensions({});
-      assert.equal(attributionClaimCount(empty.eventBus), 1);
-      assert.equal(hasCacheCommand(empty.session), true);
-      configure('process', 'off');
-      await empty.session.reload();
-      assert.equal(empty.modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
-      assert.equal(empty.modelRuntime.getRegisteredNativeProvider('anthropic'), undefined);
-      configure('process,attribution', 'off');
-      await empty.session.reload();
-      assert.equal(
-        attributionClaimCount(empty.eventBus),
-        0,
-        'empty-binding reload remains blocked',
-      );
-      assert.equal(hasCacheCommand(empty.session), false);
-      await empty.session.bindExtensions({});
-      assert.equal(
-        attributionClaimCount(empty.eventBus),
-        1,
-        'explicit post-reload rebind initializes',
-      );
-      assert.equal(hasCacheCommand(empty.session), true);
-    } finally {
-      await closeSession(empty.session);
-    }
-
-    configure('process,attribution', 'off');
-    const modeOnly = await makeSession([], { skipBind: true });
-    try {
-      await modeOnly.session.bindExtensions({ mode: 'print' });
-      assert.equal(attributionClaimCount(modeOnly.eventBus), 1);
-      configure('process', 'off');
-      await modeOnly.session.reload();
-      configure('process,attribution', 'off');
-      await modeOnly.session.reload();
-      assert.equal(attributionClaimCount(modeOnly.eventBus), 0, 'mode-only reload remains blocked');
-      assert.equal(hasCacheCommand(modeOnly.session), false);
-    } finally {
-      await closeSession(modeOnly.session);
-    }
-
-    configure('process,attribution', 'off');
-    const counted = await makeSession([], { skipBind: true });
-    try {
-      const extensionErrors: Array<{ event: string; error: string }> = [];
-      await counted.session.bindExtensions({
-        mode: 'print',
-        onError: (error) => extensionErrors.push(error),
-      });
-      assert.equal(attributionClaimCount(counted.eventBus), 1);
-      assert.equal(hasCacheCommand(counted.session), true);
-      configure('process', 'off');
-      await counted.session.reload();
-      configure('process,attribution', 'off');
-      await counted.session.reload();
-      assert.equal(attributionClaimCount(counted.eventBus), 1);
-      assert.equal(hasCacheCommand(counted.session), true);
-      assert.deepEqual(extensionErrors, []);
-    } finally {
-      await closeSession(counted.session);
-    }
-  });
-
-  void it('rebuilds one successful attribution claim across enabled-disabled-enabled reload', async () => {
-    configure(undefined, 'shift+down');
-    const { session, eventBus } = await makeSession();
-    const claimCount = (): number => {
-      let count = 0;
-      eventBus.emit('pi-anthropic-attribution:claim:v1', {
-        schema_version: 'pi-anthropic-attribution.claim.v1',
-        acknowledge: () => {
-          count += 1;
-        },
-      });
-      return count;
-    };
-    try {
-      assert.equal(claimCount(), 1);
-      configure('process', 'off');
-      await session.reload();
-      assert.equal(claimCount(), 0);
-      configure('process,attribution', 'ctrl+alt+b');
-      await session.reload();
-      assert.equal(claimCount(), 1);
-    } finally {
-      await closeSession(session);
     }
   });
 
@@ -918,9 +430,6 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
       assert.ok(session.getToolDefinition('bg_delegate'));
       assert.ok(session.getToolDefinition('bg_result'));
       assert.ok(session.getActiveToolNames().includes('fusion_reason'));
-      assert.equal(session.extensionRunner.hasHandlers('session_tree'), true);
-      const ambientProvider = session.extensionRunner.getModelRegistry().getProvider('anthropic');
-      assert.ok(ambientProvider);
 
       configure('process', 'off');
       await session.reload();
@@ -938,13 +447,6 @@ void describe('C1a feature selection and dock configuration', { concurrency: fal
         );
       }
       assert.equal(session.extensionRunner.hasHandlers('session_tree'), false);
-      const restoredProvider = session.extensionRunner.getModelRegistry().getProvider('anthropic');
-      assert.ok(restoredProvider);
-      assert.notEqual(
-        restoredProvider.streamSimple,
-        ambientProvider.streamSimple,
-        'reload must remove the package-owned ambient provider implementation',
-      );
 
       configure('process,delegate', 'ctrl+alt+b');
       await session.reload();

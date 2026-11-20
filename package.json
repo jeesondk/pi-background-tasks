@@ -83,7 +83,6 @@
   "pi": {
     "image": "https://raw.githubusercontent.com/ismailsaleekh/pi-background-tasks/main/logo.png",
     "extensions": [
-      "./dist/extensions/anthropic-attribution.js",
       "./dist/extensions/background-tasks.js"
     ]
   },

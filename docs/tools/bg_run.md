@@ -105,7 +105,7 @@ Legacy argument preparation can derive a missing `name` from `description` or `c
 
 Use for long-running tests, builds, servers, watchers, sleeps, and child agent work. Do not use normal foreground shell tools for commands expected to outlive the current turn.
 
-For an Anthropic child `pi`, keep normal extension discovery enabled when parent ambient attribution is enabled. Do not pass `--no-extensions` unless the command also explicitly loads this package's always-on `extensions/anthropic-attribution-child.ts` with `-e`/`--extension`.
+An Anthropic child `pi` needs no package extension; it uses Pi's built-in Anthropic transport and your configured credential.
 
 ## Defaults
 
@@ -192,7 +192,6 @@ The command runs through the platform shell and is not sandboxed. Use `isAgent:t
 - [`bg_kill`](bg_kill.md)
 - [`/bg`](../commands/bg.md)
 - [Background task runtime](../subsystems/background-task-runtime.md)
-- [Anthropic attribution](../subsystems/anthropic-attribution.md)
 
 ## Source ownership/reference
 

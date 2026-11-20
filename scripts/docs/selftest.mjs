@@ -36,9 +36,9 @@ function mustThrow(name, fn, pattern) {
 const codeFacts = buildCodeFacts();
 const docsModel = loadDocsModel();
 
-assert.equal(docsModel.docs.length, 43, 'all docs/**/*.md are governed');
-assert.equal(codeFacts.public_surface_ids.length, 33, 'all command/tool/shortcut/renderer/EventBus/workflow surfaces are extracted');
-assert.equal(codeFacts.default_public_surface_ids.length, 32, 'alternate dock shortcut is the only non-default surface');
+assert.equal(docsModel.docs.length, 41, 'all docs/**/*.md are governed');
+assert.equal(codeFacts.public_surface_ids.length, 32, 'all command/tool/shortcut/renderer/EventBus/workflow surfaces are extracted');
+assert.equal(codeFacts.default_public_surface_ids.length, 31, 'alternate dock shortcut is the only non-default surface');
 assert.ok(codeFacts.public_surface_ids.includes('eventbus:background-task-v1'));
 assert.ok(codeFacts.public_surface_ids.includes('eventbus:background-task-host-v1'));
 assert.ok(codeFacts.default_public_surface_ids.includes('eventbus:background-task-host-v1'));
@@ -53,7 +53,6 @@ assert.equal(
   'any(feature:delegate,feature:fusion)',
 );
 assert.equal(surfaceById.get('tool:bg_run_pi_attested').availability, 'feature:attested');
-assert.equal(surfaceById.get('command:claude-cache').availability, 'feature:attribution');
 assert.equal(surfaceById.get('shortcut:shift+down').availability, 'dock:shift+down');
 assert.equal(surfaceById.get('shortcut:ctrl+alt+b').availability, 'dock:ctrl+alt+b');
 assert.equal(surfaceById.get('shortcut:ctrl+alt+b').default_available, false);

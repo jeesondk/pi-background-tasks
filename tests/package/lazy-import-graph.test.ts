@@ -180,13 +180,7 @@ void describe('lazy facade runtime import graph', () => {
   });
 
   void it('keeps host-sensitive dynamic-import issuers on Pi alias-aware module paths', async () => {
-    assert.deepEqual(
-      [...await runtimeBareImports('src/core/anthropic-attribution.ts')],
-      [],
-      'the native lazy attribution core must receive host adapters/helpers by injection',
-    );
     const expectedHostImports = new Map<string, string>([
-      ['extensions/anthropic-attribution.ts', '@earendil-works/pi-ai/compat'],
       ['src/extension.ts', '@earendil-works/pi-coding-agent'],
       ['src/delegate-extension.ts', '@earendil-works/pi-tui'],
       ['src/fusion-extension.ts', '@earendil-works/pi-coding-agent'],
@@ -232,7 +226,7 @@ void describe('lazy facade runtime import graph', () => {
     });
   });
 
-  void it('keeps disabled facades, dock UI, attribution, and attested execution out of process startup', async () => {
+  void it('keeps disabled facades, dock UI, and attested execution out of process startup', async () => {
     const extensionGraph = await runtimeStaticGraph('src/extension.ts');
     for (const forbidden of [
       'src/delegate-extension.ts',
@@ -252,12 +246,6 @@ void describe('lazy facade runtime import graph', () => {
       false,
       'ordinary registry startup must not load the attested producer',
     );
-    const attributionGraph = await runtimeStaticGraph('extensions/anthropic-attribution.ts');
-    assert.equal(
-      attributionGraph.has('src/core/anthropic-attribution.ts'),
-      false,
-      'disabled attribution must not load its transport implementation',
-    );
 
     const extensionImports = await dynamicImports('src/extension.ts');
     for (const expected of [
@@ -269,8 +257,6 @@ void describe('lazy facade runtime import graph', () => {
     }
     const registryImports = await dynamicImports('src/core/registry.ts');
     assert.ok(registryImports.has('./attested-pi-run.js'));
-    const attributionImports = await dynamicImports('extensions/anthropic-attribution.ts');
-    assert.ok(attributionImports.has('../src/core/anthropic-attribution.js'));
 
     const extensionSource = await readFile(sourcePath('src/extension.ts'), 'utf8');
     assert.match(

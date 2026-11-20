@@ -2,7 +2,6 @@ export const FUSION_CLAUDE_CACHE_OBSERVATION_SCHEMA_VERSION = 'pi-background-tas
 export const FUSION_CLAUDE_CACHE_RETENTION_ENV = 'PI_CACHE_RETENTION';
 export const FUSION_CLAUDE_CACHE_DEFAULT_RETENTION = 'long';
 export const FUSION_CLAUDE_CACHE_BREAKPOINT_LIMIT = 4;
-export const FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA = 'prompt-caching-scope-2026-01-05';
 function isRecord(value) {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -29,22 +28,6 @@ export function resolveFusionClaudeCachePolicy(env = process.env) {
         retention: parseRetention(configured),
         source: FUSION_CLAUDE_CACHE_RETENTION_ENV,
     };
-}
-export function applyFusionClaudePromptCachingScopeHeader(headers) {
-    const matchingKey = Object.keys(headers).find((key) => key.toLowerCase() === 'anthropic-beta');
-    const existing = matchingKey === undefined ? undefined : headers[matchingKey];
-    const values = typeof existing === 'string'
-        ? existing
-            .split(',')
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0)
-        : [];
-    if (!values.includes(FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA)) {
-        values.push(FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA);
-    }
-    const targetKey = matchingKey ?? 'anthropic-beta';
-    headers[targetKey] = values.join(',');
-    return true;
 }
 function validateCacheControl(value) {
     if (!isRecord(value)) {

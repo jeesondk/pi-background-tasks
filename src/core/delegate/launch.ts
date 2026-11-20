@@ -256,7 +256,6 @@ export interface DelegateChildArgvInput {
   childSessionId: string;
   childSessionDir: string;
   childExtensionPath: string;
-  attributionExtensionPath?: string | undefined;
   systemPrompt: string;
 }
 
@@ -268,8 +267,8 @@ export interface DelegateChildArgvInput {
  * prompt templates, themes, and context files are always disabled. Extension
  * discovery is disabled in isolated mode and deliberately enabled in ambient
  * mode; ambient extensions execute arbitrary code and are not sandboxed by the
- * model-visible tool allowlist. The package guard is always explicit; Anthropic
- * routes first load the package attribution/sanitization extension.
+ * model-visible tool allowlist. The package guard is always explicit and is the
+ * only package extension loaded; every provider uses Pi's built-in transport.
  */
 export function buildDelegateChildArgv(input: DelegateChildArgvInput): string[] {
   assertDelegateExtensionMode(input.extensionMode);
@@ -282,19 +281,7 @@ export function buildDelegateChildArgv(input: DelegateChildArgvInput): string[] 
       );
     }
   }
-  const extensionPaths =
-    input.route.provider === 'anthropic'
-      ? [
-          input.attributionExtensionPath ??
-            (() => {
-              throw new DelegateError(
-                'Anthropic delegate launch requires the package attribution extension',
-                { code: 'delegate_isolation_unsupported', childCreated: false },
-              );
-            })(),
-          input.childExtensionPath,
-        ]
-      : [input.childExtensionPath];
+  const extensionPaths = [input.childExtensionPath];
 
   return [
     '--mode',

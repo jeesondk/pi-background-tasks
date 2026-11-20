@@ -112,7 +112,7 @@ void describe('fusion model config', () => {
     assert.equal(resolved.merger.thinkingLevel, 'high');
   });
 
-  void it('caps Anthropic route capacity to the attributed 200K subscription transport', () => {
+  void it('uses the advertised Anthropic context window without a subscription cap', () => {
     const claude = model('anthropic', 'claude-sonnet-4-6', 1_000_000);
     const config = parseFusionModelConfig({
       schema_version: FUSION_MODEL_CONFIG_SCHEMA_VERSION,
@@ -130,116 +130,27 @@ void describe('fusion model config', () => {
       currentModel: claude,
       thinkingLevel: 'high',
     });
-    assert.equal(resolved.candidates[0].contextWindow, 200_000);
-    assert.equal(resolved.evaluator.contextWindow, 200_000);
-    assert.equal(resolved.merger.contextWindow, 200_000);
+    assert.equal(resolved.candidates[0].contextWindow, 1_000_000);
+    assert.equal(resolved.evaluator.contextWindow, 1_000_000);
+    assert.equal(resolved.merger.contextWindow, 1_000_000);
   });
 
-  void it('rejects frontier models unless they use a supported subscription OAuth route', () => {
-    const codex = model('openai-codex', 'gpt-5.5');
-    assert.throws(
-      () =>
-        resolveFusionModels({
-          config: defaultFusionModelConfig(),
-          modelRegistry: registry([codex], false),
-          currentModel: codex,
-          thinkingLevel: 'medium',
-        }),
-      /not using subscription OAuth/,
-    );
-    const metered = model('openrouter', 'openai/gpt-5.5');
-    assert.throws(
-      () =>
-        resolveFusionModels({
-          config: defaultFusionModelConfig(),
-          modelRegistry: registry([metered], true),
-          currentModel: metered,
-          thinkingLevel: 'medium',
-        }),
-      /frontier-model API channel/,
-    );
-    for (const azureModel of ['o1', 'o3', 'o4-mini']) {
-      const azure = model('azure-openai-responses', azureModel);
-      assert.throws(
-        () =>
-          resolveFusionModels({
-            config: defaultFusionModelConfig(),
-            modelRegistry: registry([azure], true),
-            currentModel: azure,
-            thinkingLevel: 'medium',
-          }),
-        /frontier-model API channel/,
-      );
-    }
-    const aliasedOModel = model('custom-metered', 'o3-mini');
-    assert.throws(
-      () =>
-        resolveFusionModels({
-          config: defaultFusionModelConfig(),
-          modelRegistry: registry([aliasedOModel], true),
-          currentModel: aliasedOModel,
-          thinkingLevel: 'medium',
-        }),
-      /frontier-model API channel/,
-    );
-    for (const endpoint of [
-      'https://api.openai.com/v1',
-      'https://api.anthropic.com',
-      'https://openrouter.ai/api/v1',
-      'https://chatgpt.com/backend-api',
-      'https://tenant.openai.azure.com/openai/v1',
-      'https://tenant.cognitiveservices.azure.com/openai/v1',
-      'https://tenant.ai.azure.com/openai/v1',
+  void it('admits API-key (non-OAuth) routes, including Anthropic and other frontier providers', () => {
+    for (const route of [
+      model('anthropic', 'claude-opus-5'),
+      model('openai', 'gpt-5.5', 1000, 'https://api.openai.com/v1'),
+      model('openrouter', 'openai/gpt-5.5', 1000, 'https://openrouter.ai/api/v1'),
+      model('azure-openai-responses', 'o3'),
     ]) {
-      const endpointAlias = model('custom', 'prod', 1000, endpoint);
-      assert.throws(
-        () =>
-          resolveFusionModels({
-            config: defaultFusionModelConfig(),
-            modelRegistry: registry([endpointAlias], true),
-            currentModel: endpointAlias,
-            thinkingLevel: 'medium',
-          }),
-        /frontier-model API channel/,
+      assert.doesNotThrow(() =>
+        resolveFusionModels({
+          config: defaultFusionModelConfig(),
+          modelRegistry: registry([route], false),
+          currentModel: route,
+          thinkingLevel: 'medium',
+        }),
       );
     }
-  });
-
-  void it('binds subscription OAuth routes to trusted endpoints and provider authentication', () => {
-    const redirected = model('openai-codex', 'gpt-5.5', 1000, 'https://example.invalid');
-    assert.throws(
-      () =>
-        resolveFusionModels({
-          config: defaultFusionModelConfig(),
-          modelRegistry: registry([redirected]),
-          currentModel: redirected,
-          thinkingLevel: 'medium',
-        }),
-      /trusted Pi subscription endpoint/,
-    );
-    const overridden = {
-      ...model('anthropic', 'claude-opus-5'),
-      headers: { Authorization: 'Bearer direct-credential' },
-    };
-    assert.throws(
-      () =>
-        resolveFusionModels({
-          config: defaultFusionModelConfig(),
-          modelRegistry: registry([overridden]),
-          currentModel: overridden,
-          thinkingLevel: 'medium',
-        }),
-      /overrides subscription authentication header/,
-    );
-    const codex = model('openai-codex', 'gpt-5.5', 1000, 'https://chatgpt.com/backend-api/');
-    assert.doesNotThrow(() =>
-      resolveFusionModels({
-        config: defaultFusionModelConfig(),
-        modelRegistry: registry([codex]),
-        currentModel: codex,
-        thinkingLevel: 'medium',
-      }),
-    );
   });
 
   void it('fails loudly for missing current or unavailable configured models', () => {

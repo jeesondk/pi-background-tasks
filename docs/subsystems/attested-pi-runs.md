@@ -40,9 +40,9 @@ The logical argv always begins:
 pi --mode json --provider <provider> --model <model>
 ```
 
-For an Anthropic request, the package then adds `--extension <package-owned-anthropic-attribution-child>` before optional thinking. This resolves the always-on child entrypoint and remains mandatory even when parent ambient attribution is disabled. Next come optional `--thinking <thinking>`, literal `extraPiArgs`, and the prompt as the final user prompt argument. Forbidden extra args are direct auth (`--api-key`, `--auth-file`), mode/print (`-p`, `--print`, `--mode`), and duplicate structured fields (`--provider`, `--model`, `--thinking`). Missing attribution bytes refuse an Anthropic launch before task creation.
+Next come optional `--thinking <thinking>`, literal `extraPiArgs`, and the prompt as the final user prompt argument. Forbidden extra args are direct auth (`--api-key`, `--auth-file`), mode/print (`-p`, `--print`, `--mode`), and duplicate structured fields (`--provider`, `--model`, `--thinking`). Anthropic routes add no package extension and use Pi's built-in transport.
 
-The registry launches exactly one child through the resolved Pi executable with `shell:false`. The attestation records the stable logical argv (`['pi', ...]`), including any package-owned attribution extension, not platform-specific Windows Node/CLI shims. Attested tasks are created with generic background completion notification/wake disabled; terminal snapshots are still published through the task system.
+The registry launches exactly one child through the resolved Pi executable with `shell:false`. The attestation records the stable logical argv (`['pi', ...]`) not platform-specific Windows Node/CLI shims. Attested tasks are created with generic background completion notification/wake disabled; terminal snapshots are still published through the task system.
 
 ## Auth and environment boundary
 

@@ -511,7 +511,6 @@ void describe('package', () => {
     assert.ok(p.keywords.includes('pi-package'));
     assert.ok(p.keywords.includes('pi-extension'));
     assert.deepEqual(p.pi.extensions, [
-      './dist/extensions/anthropic-attribution.js',
       './dist/extensions/background-tasks.js',
     ]);
     assert.equal(
@@ -559,8 +558,6 @@ void describe('package', () => {
       'src/core/attested-pi-run.ts',
       'src/core/canonical-json.ts',
       'src/core/task-durable.ts',
-      'src/core/anthropic-attribution.ts',
-      'src/core/anthropic-attribution-path.ts',
       'src/core/config.ts',
       'src/core/pi-launch.ts',
       'src/core/fusion/orchestrator.ts',
@@ -586,14 +583,10 @@ void describe('package', () => {
       'src/core/delegate/hook-contract-evidence.json',
       'src/delegate-extension.ts',
       'src/delegate-child-extension.ts',
-      'extensions/anthropic-attribution-child.ts',
-      'extensions/anthropic-attribution.ts',
       'extensions/background-tasks.ts',
       'extensions/fusion-child.ts',
       'extensions/delegate-child.ts',
-      'dist/extensions/anthropic-attribution.js',
       'dist/extensions/background-tasks.js',
-      'dist/extensions/anthropic-attribution-child.js',
       'dist/extensions/delegate-child.js',
       'dist/extensions/fusion-child.js',
       'dist/src/core/delegate/hook-contract-evidence.json',
@@ -632,7 +625,6 @@ void describe('package', () => {
       '/bg-tasks',
       '/bg-clear',
       '/bg-update',
-      '/claude-cache',
       'bg_run',
       'bg_delegate',
       'extensionMode',
@@ -997,7 +989,7 @@ void describe('package', () => {
     );
   });
 
-  void it('ships global package-owned Anthropic attribution with no exotic dependency', async () => {
+  void it('ships no Claude Code impersonation and no private provider dependency', async () => {
     const p = await pkg();
     assert.equal(p.peerDependencies['@earendil-works/pi-ai'], '*');
     assert.equal(
@@ -1005,7 +997,6 @@ void describe('package', () => {
       undefined,
       'Pi AI must resolve through the host loader rather than a private runtime copy',
     );
-    assert.equal(p.dependencies?.['@ravshansbox/pi-anthropic-sps'], undefined);
     for (const [name, specifier] of Object.entries(p.dependencies ?? {})) {
       assert.doesNotMatch(
         specifier,
@@ -1013,48 +1004,38 @@ void describe('package', () => {
         `production dependency ${name} must use a registry version`,
       );
     }
-    const attribution = await text('src/core/anthropic-attribution.ts');
-    assert.match(attribution, /X-Claude-Code-Session-Id/);
-    assert.match(attribution, /prompt-caching-scope-2026-01-05/);
-    assert.match(attribution, /cacheWrite1h/);
-    assert.match(attribution, /CLAUDE_CODE_200K_SUBSCRIPTION_CONTEXT_WINDOW/);
-    assert.match(
-      attribution,
-      /'- When asked about: extensions \(docs\/extensions\.md, examples\/extensions\/\)',/,
+    assert.equal(
+      p.pi.extensions.some((entry: string) => entry.includes('anthropic-attribution')),
+      false,
     );
-    assert.match(
-      attribution,
-      /'- When working on pi topics, read the docs and examples, and follow \.md cross-references before implementing',/,
-    );
-    assert.match(attribution, /ANTHROPIC_ATTRIBUTION_CLAIM_CHANNEL/);
-
-    const [compiledCore, compiledAmbientGateway, compiledChildGateway] = await Promise.all([
-      text('dist/src/core/anthropic-attribution.js'),
-      text('dist/extensions/anthropic-attribution.js'),
-      text('dist/extensions/anthropic-attribution-child.js'),
-    ]);
-    const runtimePiAiImport =
-      /from ['"]@earendil-works\/pi-ai(?:\/compat)?['"]/u;
-    assert.doesNotMatch(
-      compiledCore,
-      runtimePiAiImport,
-      'the lazy native-import target must not resolve a private Pi AI package',
-    );
-    assert.match(compiledAmbientGateway, runtimePiAiImport);
-    assert.match(compiledChildGateway, runtimePiAiImport);
-    assert.match(compiledAmbientGateway, /hostAnthropicMessagesApi: anthropicMessagesApi/u);
-    assert.match(compiledChildGateway, /hostAnthropicMessagesApi: anthropicMessagesApi/u);
-
-    const child = await text('src/core/fusion/pi-child.ts');
-    assert.match(child, /FUSION_SANITIZED_PROVIDER\s*=\s*'anthropic'/);
-    assert.doesNotMatch(child, /pi-anthropic-sps/);
-    assert.match(child, /resolveAnthropicAttributionExtensionPath/);
-    assert.match(child, /return \[resolveAttribution\(\), childExtensionPath\]/);
-    assert.match(
-      child,
-      /model\.provider !== FUSION_SANITIZED_PROVIDER/,
-      'attribution must be provider-gated so other routes keep identical argv',
-    );
+    const forbidden = [
+      /X-Claude-Code-Session-Id/i,
+      /claude-cli\//,
+      /x-anthropic-billing-header/,
+      /You are Claude Code, Anthropic's official CLI/,
+      /claude-code-20250219/,
+      /oauth-2025-04-20/,
+      /sk-ant-oat/,
+    ];
+    const roots = ['src', 'extensions', 'dist'];
+    const files: string[] = [];
+    const walk = async (relative: string): Promise<void> => {
+      for (const entry of await readdir(fileURLToPath(new URL(`${relative}/`, root)), {
+        withFileTypes: true,
+      })) {
+        const next = `${relative}/${entry.name}`;
+        if (entry.isDirectory()) await walk(next);
+        else if (/\.(?:ts|js|mjs)$/.test(entry.name)) files.push(next);
+      }
+    };
+    for (const dir of roots) await walk(dir);
+    assert.ok(files.length > 0);
+    for (const file of files) {
+      const body = await text(file);
+      for (const pattern of forbidden) {
+        assert.doesNotMatch(body, pattern, `${file} must not impersonate Claude Code`);
+      }
+    }
   });
 
   void it('keeps Fusion Claude cache normalization before final-payload governance', async () => {
@@ -1063,7 +1044,7 @@ void describe('package', () => {
     assert.match(cache, /PI_CACHE_RETENTION/);
     assert.match(cache, /FUSION_CLAUDE_CACHE_BREAKPOINT_LIMIT\s*=\s*4/);
     assert.match(cache, /upstream call-level opt-out/);
-    assert.match(cache, /prompt-caching-scope-2026-01-05/);
+    assert.doesNotMatch(cache, /prompt-caching-scope-2026-01-05/);
 
     const childRunner = await text('src/core/fusion/pi-child.ts');
     assert.match(childRunner, /out\[FUSION_CLAUDE_CACHE_RETENTION_ENV\] = 'long'/);
@@ -2210,23 +2191,17 @@ void describe('package', () => {
     assert.ok(firstEntry, 'npm pack must return one entry');
     const files = firstEntry.files.map((file) => file.path).sort();
     for (const f of [
-      'dist/extensions/anthropic-attribution-child.js',
-      'dist/extensions/anthropic-attribution.js',
       'dist/extensions/background-tasks.js',
       'dist/extensions/delegate-child.js',
       'dist/extensions/fusion-child.js',
       'dist/src/core/delegate/hook-contract-evidence.json',
       'dist/package.json',
-      'extensions/anthropic-attribution-child.ts',
-      'extensions/anthropic-attribution.ts',
       'extensions/background-tasks.ts',
       'extensions/fusion-child.ts',
       'src/extension.ts',
       'src/fusion-child-extension.ts',
       'src/core/common.ts',
       'src/core/registry.ts',
-      'src/core/anthropic-attribution.ts',
-      'src/core/anthropic-attribution-path.ts',
       'src/core/config.ts',
       'src/core/extension-api.ts',
       'src/core/attested-pi-run.ts',
@@ -2797,16 +2772,12 @@ void describe('package', () => {
         'docs/assets/architecture.svg',
         'docs/assets/footer-dock.svg',
         'docs/assets/logo.svg',
-        'extensions/anthropic-attribution-child.ts',
-        'extensions/anthropic-attribution.ts',
         'extensions/background-tasks.ts',
         'extensions/fusion-child.ts',
         'src/extension.ts',
         'src/fusion-extension.ts',
         'src/fusion-child-extension.ts',
         'src/core/registry.ts',
-        'src/core/anthropic-attribution.ts',
-        'src/core/anthropic-attribution-path.ts',
         'src/core/config.ts',
         'src/core/extension-api.ts',
         'src/core/attested-pi-run.ts',

@@ -91,7 +91,7 @@ void describe('Fusion model-role documentation', () => {
     );
     assert.match(guide, /Quality-first/i);
     assert.match(guide, /Speed-first/i);
-    assert.match(guide, /subscription OAuth/i);
+    assert.match(guide, /including API-key routes/i);
     assert.match(guide, /five child invocations/i);
     assert.match(guide, /six child invocations/i);
     assert.match(guide, /zero children/i);

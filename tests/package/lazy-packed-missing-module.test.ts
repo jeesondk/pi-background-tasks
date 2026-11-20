@@ -153,30 +153,6 @@ void describe('packed lazy-module closure', { concurrency: false }, () => {
       );
     }
 
-    const capabilities = await execFileAsync(
-      process.execPath,
-      [
-        '--experimental-vm-modules',
-        join(packageRoot, 'tests/fixtures/attribution-host-capabilities.mjs'),
-        packedRoot,
-      ],
-      {
-        cwd: root,
-        timeout: 30_000,
-        killSignal: 'SIGKILL',
-        maxBuffer: 1024 * 1024,
-        env: {
-          HOME: join(root, 'home'),
-          USERPROFILE: join(root, 'home'),
-          PI_OFFLINE: '1',
-          PI_SKIP_VERSION_CHECK: '1',
-          PI_TELEMETRY: '0',
-          CI: '1',
-        },
-      },
-    );
-    assert.match(capabilities.stdout, /packed attribution host capabilities PASS/u);
-    console.log(capabilities.stdout.trim());
 
     const hostPackage =
       process.env['PI_BG_TEST_HOST_PACKAGE'] ??
@@ -242,7 +218,6 @@ void describe('packed lazy-module closure', { concurrency: false }, () => {
       agentDir: startupAgentDir,
       settingsManager: startupSettings,
       additionalExtensionPaths: [
-        join(packedRoot, 'dist/extensions/anthropic-attribution.js'),
         join(packedRoot, 'dist/extensions/background-tasks.js'),
       ],
       noExtensions: true,
@@ -275,10 +250,11 @@ void describe('packed lazy-module closure', { concurrency: false }, () => {
         onError: (error) => startupErrors.push(error),
       });
       assert.ok(startupSession.getToolDefinition('bg_run'));
-      assert.ok(
+      assert.equal(
         startupSession.extensionRunner
           .getRegisteredCommands()
           .some((command) => command.invocationName === 'claude-cache'),
+        false,
       );
 
       const context = startupSession.extensionRunner.createContext();
@@ -354,26 +330,6 @@ void describe('packed lazy-module closure', { concurrency: false }, () => {
       startupSession = undefined;
       assert.deepEqual(startupErrors, []);
 
-      const childLoader = new DefaultResourceLoader({
-        cwd: startupCwd,
-        agentDir: startupAgentDir,
-        settingsManager: SettingsManager.inMemory(),
-        additionalExtensionPaths: [
-          join(packedRoot, 'dist/extensions/anthropic-attribution-child.js'),
-        ],
-        noExtensions: true,
-        noSkills: true,
-        noPromptTemplates: true,
-        noContextFiles: true,
-        noThemes: true,
-      });
-      await childLoader.reload();
-      assert.deepEqual(childLoader.getExtensions().errors, []);
-      assert.equal(childLoader.getExtensions().runtime.pendingProviderRegistrations.length, 1);
-      assert.equal(
-        childLoader.getExtensions().runtime.pendingProviderRegistrations[0]?.name,
-        'anthropic',
-      );
     } finally {
       if (startupSession !== undefined) await close(startupSession);
       if (startupPrevious.features === undefined)

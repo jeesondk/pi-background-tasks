@@ -5,7 +5,6 @@ import { getAgentDir } from '@earendil-works/pi-coding-agent';
 import type { Api, Model } from '@earendil-works/pi-ai';
 import { isJsonObject, parseJsonText, type JsonObject } from '../common.js';
 import { replaceFileDurable } from '../durable-fs.js';
-import { CLAUDE_CODE_200K_SUBSCRIPTION_CONTEXT_WINDOW } from '../anthropic-attribution.js';
 import { CURRENT_MODEL_SELECTION } from './facade-contract.js';
 import {
   FUSION_MODEL_CONFIG_SCHEMA_VERSION,
@@ -161,10 +160,7 @@ function requireContextWindow(model: Model<Api>, label: string): number {
 }
 
 function transportContextWindow(model: Model<Api>, label: string): number {
-  const advertised = requireContextWindow(model, label);
-  return model.provider === 'anthropic'
-    ? Math.min(advertised, CLAUDE_CODE_200K_SUBSCRIPTION_CONTEXT_WINDOW)
-    : advertised;
+  return requireContextWindow(model, label);
 }
 
 function requireMaxOutputTokens(model: Model<Api>, label: string): number {
@@ -184,119 +180,13 @@ function modelIndex(models: readonly Model<Api>[]): Map<string, Model<Api>> {
   return out;
 }
 
-const FRONTIER_MODEL_PATTERN =
-  /(?:^|[-_/])(?:gpt|codex|claude|opus|sonnet|o[134](?:-[a-z0-9.]+)*)(?:[-_/]|$)/iu;
-const TRUSTED_SUBSCRIPTION_ENDPOINTS = Object.freeze({
-  anthropic: 'https://api.anthropic.com',
-  'openai-codex': 'https://chatgpt.com/backend-api',
-} as const);
-const AUTH_HEADER_NAMES = new Set(['authorization', 'proxy-authorization', 'x-api-key', 'api-key']);
-
-function isKnownFrontierEndpoint(baseUrl: string | undefined): boolean {
-  if (baseUrl === undefined || baseUrl.trim().length === 0) return false;
-  try {
-    const hostname = new URL(baseUrl).hostname.toLowerCase().replace(/\.+$/u, '');
-    return (
-      hostname === 'api.openai.com' ||
-      hostname === 'api.anthropic.com' ||
-      hostname === 'openrouter.ai' ||
-      hostname === 'chatgpt.com' ||
-      hostname.endsWith('.openai.azure.com') ||
-      hostname.endsWith('.cognitiveservices.azure.com') ||
-      hostname.endsWith('.ai.azure.com')
-    );
-  } catch {
-    return false;
-  }
-}
-
-function assertTrustedSubscriptionEndpoint(
-  model: Model<Api>,
-  slotLabel: string,
-  provider: keyof typeof TRUSTED_SUBSCRIPTION_ENDPOINTS,
-): void {
-  const expectedText = TRUSTED_SUBSCRIPTION_ENDPOINTS[provider];
-  const effectiveText = model.baseUrl?.trim() || expectedText;
-  let effective: URL;
-  try {
-    effective = new URL(effectiveText);
-  } catch {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} has a malformed subscription endpoint`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-  const expected = new URL(expectedText);
-  const effectivePath = effective.href.slice(effective.origin.length).replace(/\/+$/u, '');
-  const expectedPath = expected.href.slice(expected.origin.length).replace(/\/+$/u, '');
-  if (
-    effective.protocol !== 'https:' ||
-    effective.username !== '' ||
-    effective.password !== '' ||
-    effective.search !== '' ||
-    effective.hash !== '' ||
-    effective.origin !== expected.origin ||
-    effectivePath !== expectedPath
-  ) {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} does not use the trusted Pi subscription endpoint ${expectedText}`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-  const unsafeHeader = Object.keys(model.headers ?? {}).find((name) =>
-    AUTH_HEADER_NAMES.has(name.toLowerCase()),
-  );
-  if (unsafeHeader !== undefined) {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} overrides subscription authentication header ${unsafeHeader}`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-}
-
-function assertSubscriptionRoute(
-  model: Model<Api>,
-  slotLabel: string,
-  registry: FusionModelRegistry,
-): void {
-  const provider = model.provider.toLowerCase();
-  const frontier =
-    provider === 'openai' ||
-    provider === 'openrouter' ||
-    provider === 'anthropic' ||
-    provider === 'openai-codex' ||
-    provider.includes('azure') ||
-    FRONTIER_MODEL_PATTERN.test(`${provider}/${model.id}`) ||
-    isKnownFrontierEndpoint(model.baseUrl);
-  if (!frontier) return;
-  if (provider !== 'anthropic' && provider !== 'openai-codex') {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} is a frontier-model API channel; Fusion requires the Pi Anthropic or Codex subscription route`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-  assertTrustedSubscriptionEndpoint(model, slotLabel, provider);
-  if (registry.isUsingOAuth === undefined) {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} cannot be admitted because ModelRegistry OAuth observation is unavailable`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-  if (!registry.isUsingOAuth(model)) {
-    throw new FusionError(
-      `${slotLabel} route ${model.provider}/${model.id} is not using subscription OAuth; metered API credentials are forbidden for Fusion`,
-      { code: 'model_unavailable', childCreated: false },
-    );
-  }
-}
-
 function resolveSelection(
   selection: FusionModelSelection,
   slotLabel: string,
   availableByKey: Map<string, Model<Api>>,
   currentModel: Model<Api> | undefined,
   thinkingLevel: FusionThinkingLevel,
-  registry: FusionModelRegistry,
+  _registry: FusionModelRegistry,
 ): ResolvedFusionModel {
   if (selection === CURRENT_MODEL_SELECTION) {
     if (currentModel === undefined) {
@@ -316,7 +206,6 @@ function resolveSelection(
         },
       );
     }
-    assertSubscriptionRoute(available, slotLabel, registry);
     return {
       selection,
       source: 'current',
@@ -335,7 +224,6 @@ function resolveSelection(
       childCreated: false,
     });
   }
-  assertSubscriptionRoute(model, slotLabel, registry);
   return {
     selection,
     source: 'configured',

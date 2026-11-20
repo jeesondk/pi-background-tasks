@@ -17,16 +17,16 @@ Every registration-owning function, imported registrar, and supported activation
 
 <!-- pi-docs:begin name="docs-freshness-gate" generator="scripts/docs/generate.mjs" -->
 - Canonical package version: `2.6.12`
-- Governed markdown docs: 43
-- Public surfaces extracted: 33
-- Public surfaces available by default: 32
+- Governed markdown docs: 41
+- Public surfaces extracted: 32
+- Public surfaces available by default: 31
 - Finite feature values: `process`, `delegate`, `fusion`, `attested`, `attribution`
 - Finite dock shortcut values: `shift+down`, `ctrl+alt+b`, `off`
-- Governed production sources: 63
+- Governed production sources: 59
 - Tool contracts extracted: 11
 - Schema IDs extracted: 51
-- Environment variable references extracted: 54
-- Behavioral attestation receipts not passing: 10
+- Environment variable references extracted: 35
+- Behavioral attestation receipts not passing: 9
 - Receipt store: `docs/attestations.json`
 
 `npm run docs:verify` is read-only: it renders generated files twice in memory and compares them with committed bytes. `npm run docs:generate` is the only docs writer.

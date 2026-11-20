@@ -15,13 +15,9 @@ Every production file under `src/**` and `extensions/**` has exactly one primary
 
 | Source | Primary behavioral owner |
 | --- | --- |
-| `extensions/anthropic-attribution-child.ts` | [subsystems/anthropic-attribution](./subsystems/anthropic-attribution.md) |
-| `extensions/anthropic-attribution.ts` | [subsystems/anthropic-attribution](./subsystems/anthropic-attribution.md) |
 | `extensions/background-tasks.ts` | [subsystems/host-ui-and-telemetry](./subsystems/host-ui-and-telemetry.md) |
 | `extensions/delegate-child.ts` | [subsystems/delegation](./subsystems/delegation.md) |
 | `extensions/fusion-child.ts` | [subsystems/fusion](./subsystems/fusion.md) |
-| `src/core/anthropic-attribution-path.ts` | [subsystems/anthropic-attribution](./subsystems/anthropic-attribution.md) |
-| `src/core/anthropic-attribution.ts` | [subsystems/anthropic-attribution](./subsystems/anthropic-attribution.md) |
 | `src/core/attested-pi-contract.ts` | [subsystems/attested-pi-runs](./subsystems/attested-pi-runs.md) |
 | `src/core/attested-pi-run.ts` | [subsystems/attested-pi-runs](./subsystems/attested-pi-runs.md) |
 | `src/core/canonical-json.ts` | [subsystems/child-launch-durability-and-safety](./subsystems/child-launch-durability-and-safety.md) |
@@ -87,7 +83,6 @@ Every production file under `src/**` and `extensions/**` has exactly one primary
 | `command:bg-clear` | `always` | yes |
 | `command:bg-tasks` | `always` | yes |
 | `command:bg-update` | `always` | yes |
-| `command:claude-cache` | `feature:attribution` | yes |
 | `command:fusion` | `feature:fusion` | yes |
 | `command:fusion-models` | `feature:fusion` | yes |
 | `command:jobs` | `always` | yes |

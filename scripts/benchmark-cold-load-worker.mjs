@@ -82,10 +82,6 @@ const backgroundPath = join(
   args.root,
   runtimePath('extensions/background-tasks.ts', 'dist/extensions/background-tasks.js'),
 );
-const attributionPath = join(
-  args.root,
-  runtimePath('extensions/anthropic-attribution.ts', 'dist/extensions/anthropic-attribution.js'),
-);
 
 async function makeLoader(paths) {
   const settingsManager = SettingsManager.inMemory({
@@ -129,7 +125,7 @@ if (
     Reflect.deleteProperty(process.env, 'PI_BG_DOCK_SHORTCUT');
   }
   const paths =
-    args.scenario === 'sdk-no-extension-load' ? [] : [attributionPath, backgroundPath];
+    args.scenario === 'sdk-no-extension-load' ? [] : [backgroundPath];
   const { loader } = await makeLoader(paths);
   const start = performance.now();
   await loader.reload();

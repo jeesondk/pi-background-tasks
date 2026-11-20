@@ -10,6 +10,8 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22.19-1f8f4d)](package.json)
 [![License](https://img.shields.io/badge/license-ISC-f5a623)](LICENSE)
 
+> **Fork notice:** this fork of [ismailsaleekh/pi-background-tasks](https://github.com/ismailsaleekh/pi-background-tasks) removes the Anthropic "attribution" provider, which disguised Pi's requests as Claude Code (spoofed `claude-cli` User-Agent, billing header, and Claude Code system prompt) and refused anything but a Claude subscription OAuth token. Background tasks, delegation, Fusion, and attested runs are unchanged and now work with an ordinary Anthropic API key through Pi's built-in provider.
+
 </div>
 
 `pi-background-tasks` adds background jobs, delegated agents, and multi-model Fusion for Pi:
@@ -17,7 +19,6 @@
 - **Run long work without blocking**: start named shell jobs, keep talking to Pi, and get durable completion notifications when they finish.
 - **Delegate context-aware investigation**: launch one route-pinned, inspect-only child Pi agent seeded with a frozen projection of the current conversation, then retrieve a hash-verified result.
 - **Combine model perspectives through fixed-purpose Fusion**: run three candidate children, blind evaluation, optional bounded evaluator repair, and merger for reasoning, investigation, targeted URL research, or validation review.
-- **Keep Anthropic subscription traffic attributed and compatible**: by default, apply the package-owned Claude Code OAuth attribution, cache policy, and SPS-derived line-start prompt sanitization to parent Anthropic routes without an external sanitizer dependency; isolated package children retain mandatory attribution even when ambient parent attribution is disabled.
 
 <p align="center">
   <img src="docs/assets/architecture.svg" alt="Architecture diagram showing Pi session, background task registry, delegated child agent, and Fusion candidate/evaluator/merger flow" width="760">
@@ -29,21 +30,21 @@
 | Package | `pi-background-tasks` |
 | Version | `2.6.12` |
 | Node engine | `>=22.19.0` |
-| Pi entrypoints | `./dist/extensions/anthropic-attribution.js`, `./dist/extensions/background-tasks.js` |
+| Pi entrypoints | `./dist/extensions/background-tasks.js` |
 | Package image | [logo.png](https://raw.githubusercontent.com/ismailsaleekh/pi-background-tasks/main/logo.png) |
 <!-- pi-docs:end name="readme-package-facts" -->
 
 <!-- pi-docs:begin name="readme-public-surfaces" generator="scripts/docs/generate.mjs" -->
 | Surface kind | Configured variants | Available by default |
 | --- | --- | --- |
-| command | 11 | 11 |
+| command | 10 | 10 |
 | tool | 11 | 11 |
 | shortcut | 3 | 2 |
 | renderer | 2 | 2 |
 | eventbus | 2 | 2 |
 | workflow | 4 | 4 |
 
-Public commands: `/bg`, `/bg-clear`, `/bg-tasks`, `/bg-update`, `/claude-cache`, `/fusion`, `/fusion-models`, `/jobs`, `/kill`, `/logs`, `/tasks`.
+Public commands: `/bg`, `/bg-clear`, `/bg-tasks`, `/bg-update`, `/fusion`, `/fusion-models`, `/jobs`, `/kill`, `/logs`, `/tasks`.
 
 Public tools: `bg_delegate`, `bg_kill`, `bg_logs`, `bg_result`, `bg_run`, `bg_run_pi_attested`, `bg_status`, `fusion_investigate`, `fusion_reason`, `fusion_research`, `fusion_validate`.
 
@@ -51,7 +52,6 @@ Public tools: `bg_delegate`, `bg_kill`, `bg_logs`, `bg_result`, `bg_run`, `bg_ru
 
 | Surface | Availability | Default |
 | --- | --- | --- |
-| `command:claude-cache` | `feature:attribution` | yes |
 | `command:fusion` | `feature:fusion` | yes |
 | `command:fusion-models` | `feature:fusion` | yes |
 | `tool:bg_delegate` | `feature:delegate` | yes |
@@ -83,7 +83,6 @@ Full owner map and generated contracts live in [docs/INDEX.md](docs/INDEX.md).
 | Ask a second agent to inspect the repo with the current conversation as context | `bg_delegate` starts one read/search/list child, isolated from ambient extensions by default; `bg_result` verifies the committed result before returning it. |
 | Compare model perspectives without exposing arbitrary parent context | Fusion children receive only the workflow input and fixed tool policy; no silent route substitution or fallback is used on delegate/Fusion paths. |
 | Produce local evidence for a direct Pi run | `bg_run_pi_attested` records local same-user-writable artifacts and hashes after a successful structured child Pi task. |
-| Use Anthropic subscription OAuth consistently | The default ambient provider applies attribution and SPS-derived line-start sanitization; `/claude-cache` shows or changes session cache retention. Isolated package-owned Anthropic children always use the mandatory child entrypoint. |
 
 ## Install
 
@@ -209,7 +208,7 @@ See [Choose a workflow](docs/choose-a-workflow.md) for a decision tree and trade
 
 Expected: returns immediately with a task id, PID when available, and `.pi/tasks/...output`. Here the explicit flag retains that exact child/id/PID/nonce/path, launch policy, absolute timeout, and cumulative cap across a supported real reload. Omit it for compatible kill-on-reload behavior. New/resume/fork/clone/quit, hard crash, process restart, empty/mode-only SDK reload, and direct `AgentSession.dispose()` are not supported survival paths. The command runs as an ordinary local shell command with your user permissions; it can invoke networked tools or paid services if the command itself does so.
 
-If `bg_run` starts an Anthropic child `pi`, keep normal extension discovery enabled when ambient attribution is enabled. Do not add `--no-extensions` unless the command also supplies this package's always-on `extensions/anthropic-attribution-child.ts` via `-e`/`--extension`; `bg_run` does not rewrite arbitrary shell argv.
+If `bg_run` starts an Anthropic child `pi`, it uses Pi's built-in Anthropic transport and your configured credential; `bg_run` does not rewrite arbitrary shell argv.
 
 ### `bg_delegate`: context-seeded read-only investigation
 
@@ -341,8 +340,8 @@ Agent tasks launched through `pi -p ...` or `pi --mode json ...` and marked `isA
 - Delegate launch budgeting uses backed route-family calibration for eligible large prompts and records a provable conservative counter-forecast across every byte class. During investigation, text and image-bearing tool output spill losslessly when retaining them would consume protected final-answer runway—even below the normal 64 KiB per-result threshold. Exact artifact ranges return as base64, final capture excludes intermediate tool-use narration, and near the runway boundary tools are disabled for graceful finalization. Runtime token estimates are advisory; Pi/provider own live context admission, avoiding Fusion BUG-185-style false refusals.
 - Shell jobs are tracked by the package, but they are not sandboxed. Treat commands as local processes with your permissions and credentials.
 - Delegate and Fusion child Pi processes are route-pinned where applicable; delegate/Fusion paths do not silently substitute routes.
-- Fusion uses direct child `pi --mode text` processes, not direct completion APIs. Frontier Fusion routes are admitted only through Pi Anthropic or Codex subscription OAuth; metered frontier API credentials are rejected before child creation.
-- Normal installations load a feature-aware ambient Claude Code OAuth attribution/sanitization entrypoint for parent Anthropic sessions; non-Anthropic sessions are unchanged. The default enables it, while omitting `attribution` removes its provider/hooks and `/claude-cache`. Isolated Fusion, delegate, and attested Anthropic children load the separate always-on child entrypoint explicitly before their guard/governor, regardless of that ambient flag. It requests `ttl: "1h"` on system/tool/conversation cache breakpoints before serialization and preserves provider-reported `cacheWrite1h` evidence. Set `PI_CACHE_RETENTION=short|none|long` or use `/claude-cache` when ambient attribution is enabled; malformed attribution, policy, cache evidence, or non-OAuth credentials fail before transport. Provider usage is preserved verbatim, but subscription OAuth can report `cacheWrite1h = 0` even when a unique cache remains readable beyond five minutes; treat positive `cacheWrite1h` as definitive and zero as inconclusive on that channel. Anthropic budgeting follows the provider's 200K subscription policy.
+- Fusion uses direct child `pi --mode text` processes, not direct completion APIs. Any route configured in Pi is admitted, including API-key (metered) routes.
+- This fork does not override Pi's Anthropic provider. Anthropic requests from the parent session and from Fusion, delegate, and attested children go through Pi's built-in transport with your configured credential (use an Anthropic API key for third-party harness use). Fusion requests `ttl: "1h"` cache breakpoints by default; set `PI_CACHE_RETENTION=short|none|long` to change that.
 - Fusion research fetches only caller-supplied public `http(s)` URLs with bounded retrieval. It is not web search and not a secret-exfiltration boundary.
 - Attestation sidecars are local, unsigned, same-user-writable evidence. They are useful for downstream local gates, but not cryptographic proof against local compromise, a compromised Pi binary, or a compromised provider.
 - Metadata, attestations, delegate/Fusion artifacts, and configuration replacements use write/fsync/rename durability patterns. Failed/cancelled stored Fusion runs also have a manifest-bound `failure-summary.json` containing bounded no-answer evidence metadata and artifact refs only; `bg_result` returns it as an answer-free typed terminal view after integrity checks. Ordinary task output is closed and drained before terminal publication but is not explicitly fsynced. POSIX directory entries are fsynced after atomic replacement; Windows lacks the same portable directory-entry crash-durability guarantee.

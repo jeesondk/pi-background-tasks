@@ -245,36 +245,14 @@ export function validateStructuredPiLaunchRequest(input: StructuredPiLaunchReque
   }
 }
 
-const ATTESTED_PI_REMOVED_ENV_KEYS = [
-  'OPENROUTER_API_KEY',
-  'OPENROUTER_BASE_URL',
-  'OPENAI_API_KEY',
-  'OPENAI_BASE_URL',
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_BASE_URL',
-  'PI_API_KEY',
-  'PI_API_BASE_URL',
-  'PI_AUTH_FILE',
-] as const;
-
+/** Child environment: inherits the parent environment, including provider credentials. */
 export function attestedPiChildEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { ...env };
-  for (const key of ATTESTED_PI_REMOVED_ENV_KEYS) Reflect.deleteProperty(out, key);
-  return out;
+  return { ...env };
 }
 
-export function buildAttestedPiArgv(
-  input: StructuredPiLaunchRequest,
-  attributionExtensionPath?: string,
-): string[] {
+export function buildAttestedPiArgv(input: StructuredPiLaunchRequest): string[] {
   validateStructuredPiLaunchRequest(input);
   const args = ['pi', '--mode', 'json', '--provider', input.provider, '--model', input.model];
-  if (input.provider === 'anthropic') {
-    if (!attributionExtensionPath?.trim()) {
-      throw new Error('Anthropic attested Pi tasks require the package attribution extension');
-    }
-    args.push('--extension', attributionExtensionPath);
-  }
   if (input.thinking?.trim()) args.push('--thinking', input.thinking.trim());
   args.push(...(input.extraPiArgs ?? []), input.prompt);
   return args;

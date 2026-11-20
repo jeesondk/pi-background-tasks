@@ -72,7 +72,6 @@ import {
   resolvePiLaunch,
   type PiLaunchDependencies,
 } from '../pi-launch.js';
-import { resolveAnthropicAttributionExtensionPath } from '../anthropic-attribution-path.js';
 
 // The response cap now applies to one final full answer, not cumulative Pi JSON events.
 export const FUSION_CHILD_STDOUT_LIMIT_BYTES = 32 * 1024 * 1024;
@@ -103,23 +102,6 @@ export const FUSION_CHILD_REMOVED_ENV_KEYS = [
   'PI_PROVIDER',
   'PI_MODEL',
   'PI_REASONING_LEVEL',
-  'OPENROUTER_API_KEY',
-  'OPENROUTER_BASE_URL',
-  'OPENAI_API_KEY',
-  'OPENAI_BASE_URL',
-  'ANTHROPIC_API_KEY',
-  'ANTHROPIC_AUTH_TOKEN',
-  'ANTHROPIC_BASE_URL',
-  'AZURE_OPENAI_API_KEY',
-  'AZURE_OPENAI_BASE_URL',
-  'AZURE_OPENAI_ENDPOINT',
-  'AZURE_OPENAI_RESOURCE_NAME',
-  'AZURE_OPENAI_API_VERSION',
-  'AZURE_OPENAI_DEPLOYMENT_NAME_MAP',
-  'AZURE_OPENAI_AD_TOKEN',
-  'PI_API_KEY',
-  'PI_API_BASE_URL',
-  'PI_AUTH_FILE',
   FUSION_TOOL_CALL_LOG_PATH_ENV,
   FUSION_CANDIDATE_OUTPUT_RECOVERY_PATH_ENV,
   FUSION_RESEARCH_ENABLED_ENV,
@@ -346,20 +328,15 @@ function fusionToolArgv(capability: FusionCapability): string[] {
  * Extensions explicitly loaded into a child, in deterministic order.
  *
  * `--no-extensions` disables discovery but still honours explicit `--extension`
- * paths, so this list is the complete set a child receives. The metadata
- * extension is always present. For Claude routes the sanitizer loads first so
- * the package-owned attribution provider establishes the Claude Code OAuth
- * request shape first, the sanitizer preserves that shape while removing only
- * rejected prompt lines, and the private runtime governor observes the final
- * payload. Non-Anthropic child argv remains unchanged.
+ * paths, so this list is the complete set a child receives. Every provider,
+ * including Anthropic, uses Pi's built-in transport and the user's configured
+ * credentials; only the metadata extension is loaded.
  */
 export function fusionChildExtensionPaths(
-  model: ResolvedFusionModel,
+  _model: ResolvedFusionModel,
   childExtensionPath: string,
-  resolveAttribution: () => string = resolveAnthropicAttributionExtensionPath,
 ): readonly string[] {
-  if (model.provider !== FUSION_SANITIZED_PROVIDER) return [childExtensionPath];
-  return [resolveAttribution(), childExtensionPath];
+  return [childExtensionPath];
 }
 
 export function buildFusionPiChildArgv(
@@ -367,13 +344,8 @@ export function buildFusionPiChildArgv(
   systemPrompt: string,
   childExtensionPath = resolveFusionChildExtensionPath(),
   capability: FusionCapability = FUSION_NO_TOOLS_CAPABILITY,
-  resolveAttribution: () => string = resolveAnthropicAttributionExtensionPath,
 ): string[] {
-  const extensionArgs = fusionChildExtensionPaths(
-    model,
-    childExtensionPath,
-    resolveAttribution,
-  ).flatMap((path) => ['--extension', path]);
+  const extensionArgs = fusionChildExtensionPaths(model, childExtensionPath).flatMap((path) => ['--extension', path]);
   return [
     '--mode',
     'text',

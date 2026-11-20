@@ -34,8 +34,6 @@ writeFileSync(
 );
 
 for (const relativePath of [
-  'extensions/anthropic-attribution.js',
-  'extensions/anthropic-attribution-child.js',
   'extensions/background-tasks.js',
   'extensions/delegate-child.js',
   'extensions/fusion-child.js',

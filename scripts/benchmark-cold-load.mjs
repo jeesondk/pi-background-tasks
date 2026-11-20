@@ -174,7 +174,7 @@ async function main() {
       : 'authoritative TypeScript source loaded through Pi/Jiti',
     package_entrypoints: args.runtime === 'compiled'
       ? packageJson.pi?.extensions ?? []
-      : ['./extensions/anthropic-attribution.ts', './extensions/background-tasks.ts'],
+      : ['./extensions/background-tasks.ts'],
     features: {
       'sdk-no-extension-load': '(no package entrypoint)',
       'sdk-process-only-load': 'process',

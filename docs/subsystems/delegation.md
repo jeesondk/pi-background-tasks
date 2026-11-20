@@ -82,8 +82,7 @@ The child launch:
 - skill/template/theme/context discovery always disabled;
 - extension discovery disabled by default in `extensionMode:"isolated"`;
 - extension discovery deliberately enabled only by `extensionMode:"ambient"`;
-- non-Anthropic children explicitly load the package-owned child guard in both modes;
-- Anthropic children explicitly load the always-on `extensions/anthropic-attribution-child.ts` safety entrypoint first, then the child guard, in both modes, regardless of the parent ambient-attribution capability.
+- every child, including Anthropic routes, explicitly loads only the package-owned child guard in both modes; Anthropic uses Pi's built-in transport.
 
 Ambient mode exists for providers registered by user/project Pi extensions. It omits only `--no-extensions`; it accepts no caller-supplied extension paths and performs no provider fallback or route substitution. Ambient discovery executes arbitrary trusted-location extension code in the child process. That code has Node process privileges and is not sandboxed by Pi's model-visible tool allowlist, so ambient mode deliberately weakens the inspect-only process-isolation guarantee. It must not be described as safe or equivalent to isolated mode.
 

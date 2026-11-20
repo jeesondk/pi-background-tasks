@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { readFile, rmdir } from 'node:fs/promises';
 import { canonicalJson } from '../canonical-json.js';
 import { replaceFileDurable } from '../durable-fs.js';
-import { resolveAnthropicAttributionExtensionPath } from '../anthropic-attribution-path.js';
 import { dirname, join } from 'node:path';
 import { DelegateArtifactStore, discardDelegateArtifactRoot } from './artifacts.js';
 import { buildDelegateChildArgv, delegateChildEnv, ensureDelegateChildSessionDir, preflightDelegateLaunch, resolveDelegateChildExtensionPath, } from './launch.js';
@@ -69,20 +68,6 @@ export async function prepareDelegateLaunch(input) {
     // Resolve the guard extension before anything is created: a package missing
     // its child guard must refuse rather than spawn an unguarded child.
     const childExtensionPath = input.childExtensionPath ?? resolveDelegateChildExtensionPath();
-    let attributionExtensionPath;
-    if (input.route.provider === 'anthropic') {
-        try {
-            attributionExtensionPath =
-                input.attributionExtensionPath ?? resolveAnthropicAttributionExtensionPath();
-        }
-        catch (error) {
-            throw new DelegateError(`Anthropic delegate attribution extension could not be resolved: ${error instanceof Error ? error.message : String(error)}`, {
-                code: 'delegate_isolation_unsupported',
-                childCreated: false,
-                remediation: ['Reinstall the package; Anthropic delegates require attribution.'],
-            });
-        }
-    }
     throwIfPreparationAborted(input.signal);
     const preflight = preflightDelegateLaunch(input);
     throwIfPreparationAborted(input.signal);
@@ -129,7 +114,6 @@ export async function prepareDelegateLaunch(input) {
             childSessionId: preflight.childSessionId,
             childSessionDir: childSessionDirAbs,
             childExtensionPath,
-            attributionExtensionPath,
             systemPrompt: preflight.childSystemPrompt,
         });
         const env = delegateChildEnv({

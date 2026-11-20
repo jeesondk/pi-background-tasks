@@ -28,7 +28,6 @@ import {
 } from '../../src/core/fusion/pi-child.js';
 import type { Usage } from '@earendil-works/pi-ai';
 import { isJsonObject } from '../../src/core/common.js';
-import { resolveAnthropicAttributionExtensionPath } from '../../src/core/anthropic-attribution-path.js';
 import {
   FUSION_FORBIDDEN_TOOLS,
   FUSION_INSPECT_TOOLS,
@@ -635,19 +634,13 @@ void describe('fusion Pi child runner', () => {
         },
       };
       fusionChildExtension(recorder as typeof recorder & FusionChildPi);
-      const beforeHeaders = handlers.get('before_provider_headers')?.[0];
+      assert.equal(handlers.has('before_provider_headers'), false);
       const beforeProvider = handlers.get('before_provider_request')?.[0];
       const messageEnd = handlers.get('message_end')?.[0];
       const agentSettled = handlers.get('agent_settled')?.[0];
-      assert.ok(beforeHeaders);
       assert.ok(beforeProvider);
       assert.ok(messageEnd);
       assert.ok(agentSettled);
-      const headers = { 'anthropic-beta': 'claude-code-20250219,oauth-2025-04-20' };
-      await Promise.resolve(
-        beforeHeaders({ headers }, { model: { provider: 'anthropic', id: 'claude-opus-4-8' } }),
-      );
-      assert.match(headers['anthropic-beta'], /prompt-caching-scope-2026-01-05/);
       const short = { type: 'ephemeral' };
       const payload = {
         model: 'claude-opus-4-8',
@@ -1033,12 +1026,12 @@ void describe('fusion Pi child runner', () => {
     });
     assert.equal(env['PI_SESSION_ID'], undefined);
     assert.equal(env['PI_MODEL'], undefined);
-    assert.equal(env['OPENAI_API_KEY'], undefined);
-    assert.equal(env['ANTHROPIC_AUTH_TOKEN'], undefined);
-    assert.equal(env['AZURE_OPENAI_API_KEY'], undefined);
-    assert.equal(env['AZURE_OPENAI_BASE_URL'], undefined);
-    assert.equal(env['Azure_OpenAI_Resource_Name'], undefined);
-    assert.equal(env['Anthropic_Api_Key'], undefined);
+    assert.equal(env['OPENAI_API_KEY'], 'metered-key');
+    assert.equal(env['ANTHROPIC_AUTH_TOKEN'], 'direct-bearer');
+    assert.equal(env['AZURE_OPENAI_API_KEY'], 'azure-key');
+    assert.equal(env['AZURE_OPENAI_BASE_URL'], 'https://metered.invalid');
+    assert.equal(env['Azure_OpenAI_Resource_Name'], 'mixed-case-resource');
+    assert.equal(env['Anthropic_Api_Key'], 'mixed-case-key');
     assert.equal(env['ANTHROPIC_OAUTH_TOKEN'], 'subscription-oauth');
     assert.equal(env[FUSION_CLAUDE_CACHE_RETENTION_ENV], 'long');
     assert.equal(env['UNRELATED_ENV'], 'preserved');
@@ -1145,54 +1138,18 @@ void describe('fusion Pi child runner', () => {
     ]);
   });
 
-  void it('loads package-owned Anthropic attribution/sanitization before the runtime governor', () => {
-    const attribution = () => '/pkg/extensions/anthropic-attribution-child.ts';
-    const claude = buildFusionPiChildArgv(
-      resolvedModel('anthropic', 'claude-opus-5'),
-      'system',
-      'extension.js',
-      'reason',
-      attribution,
-    );
-    const extensionArgs = claude.reduce<string[]>((acc, value, index) => {
-      if (value === '--extension') acc.push(claude[index + 1] ?? '');
-      return acc;
-    }, []);
-    assert.deepEqual(extensionArgs, [
-      '/pkg/extensions/anthropic-attribution-child.ts',
-      'extension.js',
-    ]);
-    assert.equal(extensionArgs.at(-1), 'extension.js');
-  });
-
-  void it('keeps non-Anthropic child argv byte-identical and never resolves attribution', () => {
-    const attribution = () => {
-      throw new Error('attribution must not be resolved for non-Anthropic routes');
-    };
-    for (const provider of ['openai-codex', 'openai', 'google', 'unknown-provider']) {
+  void it('loads only the metadata extension for every provider, including Anthropic', () => {
+    for (const provider of ['anthropic', 'openai-codex', 'openai', 'google', 'unknown-provider']) {
       const argv = buildFusionPiChildArgv(
         resolvedModel(provider, 'm1'),
         'system',
         'extension.js',
         'reason',
-        attribution,
       );
       assert.equal(argv.filter((value) => value === '--extension').length, 1);
       assert.equal(argv[argv.indexOf('--extension') + 1], 'extension.js');
+      assert.equal(argv.some((value) => value.includes('anthropic-attribution')), false);
     }
-  });
-
-  void it('resolves the package-owned global attribution extension and fails loudly if absent', () => {
-    const attribution = resolveAnthropicAttributionExtensionPath();
-    assert.match(
-      attribution.replaceAll('\\', '/'),
-      /extensions\/anthropic-attribution-child\.ts$/,
-    );
-    assert.equal(existsSync(attribution), true);
-    assert.throws(
-      () => resolveAnthropicAttributionExtensionPath(import.meta.url, () => false),
-      /Anthropic attribution extension is missing/,
-    );
   });
 
   void it('rejects fusion tool policy intersections loudly', () => {
@@ -1737,7 +1694,7 @@ void describe('fusion Pi child runner', () => {
       assert.equal(record.options.shell, false);
       assert.deepEqual(record.options.stdio, ['pipe', 'pipe', 'pipe']);
       assert.equal(record.options.env?.['PI_SESSION_FILE'], undefined);
-      assert.equal(record.options.env?.['ANTHROPIC_API_KEY'], undefined);
+      assert.equal(record.options.env?.['ANTHROPIC_API_KEY'], 'metered-key');
       assert.equal(record.options.env?.[FUSION_TOOL_CALL_LOG_PATH_ENV], undefined);
       assert.equal(
         Buffer.concat(child.stdin.chunks).toString('utf8'),

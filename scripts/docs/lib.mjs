@@ -3311,7 +3311,6 @@ function applyGeneratedRegionsToDoc(doc, codeFacts, coverage, docsModel, attesta
         'docs/commands/bg.md': ['bg'],
         'docs/commands/bg-clear.md': ['bg-clear'],
         'docs/commands/bg-update.md': ['bg-update'],
-        'docs/commands/claude-cache.md': ['claude-cache'],
         'docs/commands/fusion.md': ['fusion'],
         'docs/commands/fusion-models.md': ['fusion-models'],
         'docs/commands/jobs.md': ['jobs'],
@@ -3453,7 +3452,7 @@ function assertSvgSafe(root, rel) {
 
 export function checkPayloadFiles(files, root = PACKAGE_ROOT) {
   const fileSet = new Set(files);
-  const requiredRoots = ['dist/extensions/anthropic-attribution.js', 'dist/extensions/background-tasks.js', 'dist/extensions/anthropic-attribution-child.js', 'dist/extensions/delegate-child.js', 'dist/extensions/fusion-child.js', 'dist/package.json', 'extensions/anthropic-attribution.ts', 'extensions/background-tasks.ts', 'extensions/delegate-child.ts', 'extensions/fusion-child.ts', 'README.md', 'TESTING.md', 'TEST_PLAN.md', 'PUBLISHING.md', 'BACKGROUND-TASKS-INSTRUCTIONS.md', 'THIRD_PARTY_NOTICES.md', 'logo.png', 'LICENSE', 'package.json'];
+  const requiredRoots = ['dist/extensions/background-tasks.js', 'dist/extensions/delegate-child.js', 'dist/extensions/fusion-child.js', 'dist/package.json', 'extensions/background-tasks.ts', 'extensions/delegate-child.ts', 'extensions/fusion-child.ts', 'README.md', 'TESTING.md', 'TEST_PLAN.md', 'PUBLISHING.md', 'BACKGROUND-TASKS-INSTRUCTIONS.md', 'THIRD_PARTY_NOTICES.md', 'logo.png', 'LICENSE', 'package.json'];
   for (const f of requiredRoots) if (!fileSet.has(f)) throw new DocsGateError(`packed payload missing ${f}`);
   for (const f of walkFiles(root, 'dist', () => true)) if (!fileSet.has(f)) throw new DocsGateError(`packed payload missing ${f}`);
   for (const f of walkFiles(root, 'src', () => true)) if (!fileSet.has(f)) throw new DocsGateError(`packed payload missing ${f}`);

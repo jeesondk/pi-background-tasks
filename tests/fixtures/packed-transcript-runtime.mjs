@@ -44,7 +44,7 @@ await writeFile(
   }),
 );
 Object.assign(process.env, {
-  PI_BG_FEATURES: 'process,delegate,fusion,attribution',
+  PI_BG_FEATURES: 'process,delegate,fusion',
   PI_BG_DOCK_SHORTCUT: 'off',
   PI_CODING_AGENT_DIR: agentDir,
   PI_ANTHROPIC_ACCOUNT_CONFIG_PATH: accountPath,
@@ -86,75 +86,7 @@ if (transcriptHost) {
   assert.deepEqual(ai.getCurrentTools(messages), expectedTools);
 }
 
-let responseNumber = 0;
-let failConnections = 0;
-const requests = [];
-const wireRequests = [];
 const originalFetch = globalThis.fetch;
-globalThis.fetch = async (_input, init) => {
-  assert.equal(String(_input), 'https://api.anthropic.com/v1/messages?beta=true');
-  const payload = JSON.parse(String(init?.body));
-  requests.push(payload);
-  wireRequests.push({ body: String(init.body), headers: [...new Headers(init.headers)] });
-  if (failConnections > 0) {
-    failConnections -= 1;
-    throw new TypeError('fetch failed', {
-      cause: Object.assign(new Error('fixture socket closed'), { code: 'UND_ERR_SOCKET' }),
-    });
-  }
-  responseNumber += 1;
-  const events = [
-    { type: 'message_start', message: { id: `msg_${responseNumber}`, usage: { input_tokens: 1 } } },
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'OFFLINE_OK' } },
-    { type: 'content_block_stop', index: 0 },
-    { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
-    { type: 'message_stop' },
-  ];
-  return new Response(
-    events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join(''),
-    { status: 200, headers: { 'content-type': 'text/event-stream' } },
-  );
-};
-const target = {
-  provider: 'anthropic',
-  api: 'anthropic-messages',
-  id: 'claude-fable-5-1',
-  name: 'Fable',
-  baseUrl: 'https://api.anthropic.com',
-  input: ['text'],
-  contextWindow: 200000,
-  maxTokens: 128000,
-  reasoning: true,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-};
-async function send(transport, input, sessionId) {
-  const result = await transport(target, input, {
-    apiKey: 'sk-ant-oat-offline',
-    sessionId,
-    cacheRetention: 'none',
-    reasoning: 'low',
-  }).result();
-  assert.equal(result.stopReason, 'stop', result.errorMessage);
-  return result;
-}
-function checkPayload(payload) {
-  const system = JSON.stringify(payload.system);
-  for (const text of ['BASE_PROMPT', 'APPENDED_PROMPT', 'CURRENT_RULES'])
-    assert.ok(system.includes(text));
-  assert.doesNotMatch(system, /OLD_RULES|REMOVED_SECTION/u);
-  assert.deepEqual(
-    payload.tools.map((t) => [t.name, t.description]),
-    [
-      ['read', 'current read'],
-      ['inspect', 'inspect'],
-    ],
-  );
-  assert.equal(
-    payload.messages.some((m) => m.role === 'system'),
-    false,
-  );
-}
 const settingsManager = sdk.SettingsManager.inMemory({
   defaultProvider: 'transcript-fixture',
   defaultModel: 'fixture',
@@ -164,7 +96,6 @@ const loader = new sdk.DefaultResourceLoader({
   agentDir,
   settingsManager,
   additionalExtensionPaths: [
-    join(packedRoot, 'dist/extensions/anthropic-attribution.js'),
     join(packedRoot, 'dist/extensions/background-tasks.js'),
   ],
   noExtensions: true,
@@ -245,7 +176,6 @@ try {
       agentDir,
       settingsManager: sdk.SettingsManager.inMemory(),
       additionalExtensionPaths: [
-        join(packedRoot, 'dist/extensions/anthropic-attribution.js'),
         join(packedRoot, 'dist/extensions/background-tasks.js'),
       ],
       noExtensions: true,
@@ -313,114 +243,6 @@ try {
     mode: 'json',
     onError: (error) => assert.fail(JSON.stringify(error)),
   });
-  const ambient = modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple;
-  assert.equal(typeof ambient, 'function');
-  await send(ambient, context, 'packed-ambient-transcript');
-  checkPayload(requests.at(-1));
-
-  const childLoader = new sdk.DefaultResourceLoader({
-    cwd,
-    agentDir,
-    settingsManager: sdk.SettingsManager.inMemory(),
-    additionalExtensionPaths: [join(packedRoot, 'dist/extensions/anthropic-attribution-child.js')],
-    noExtensions: true,
-    noSkills: true,
-    noPromptTemplates: true,
-    noContextFiles: true,
-    noThemes: true,
-  });
-  await childLoader.reload();
-  assert.deepEqual(childLoader.getExtensions().errors, []);
-  const childTransport = childLoader
-    .getExtensions()
-    .runtime.pendingProviderRegistrations.find((r) => r.name === 'anthropic')?.config.streamSimple;
-  assert.equal(typeof childTransport, 'function');
-  await send(childTransport, context, 'packed-child-transcript');
-  checkPayload(requests.at(-1));
-
-  // #33/#34 and #32 through both actual packed gateways: the one-off identity
-  // and protected wire bytes survive a connection retry without private SDK peers.
-  const oneOffIds = [];
-  for (const transport of [ambient, childTransport]) {
-    const start = wireRequests.length;
-    failConnections = 1;
-    const result = await send(transport, context, undefined);
-    assert.equal(wireRequests.length, start + 2);
-    assert.deepEqual(wireRequests[start], wireRequests[start + 1]);
-    const header = new Headers(wireRequests[start].headers).get('X-Claude-Code-Session-Id');
-    assert.match(header, /^[a-f\d]{8}-[a-f\d]{4}-4[a-f\d]{3}-[89ab][a-f\d]{3}-[a-f\d]{12}$/u);
-    assert.equal(JSON.parse(requests.at(-1).metadata.user_id).session_id, header);
-    oneOffIds.push(header);
-    assert.equal(
-      result.diagnostics.find((d) => d.type === 'anthropic-connection-retry').details
-        .retries_scheduled,
-      1,
-    );
-    checkPayload(requests.at(-1));
-  }
-  assert.notEqual(oneOffIds[0], oneOffIds[1]);
-
-  // Reproduce the extension-owned modelRegistry.streamSimple call, not just the
-  // transport function. Legacy hosts expose the same operation on ModelRuntime.
-  // Do not let a missing modern facade silently hide a future host regression.
-  const registryHasSimple = typeof registry.streamSimple === 'function';
-  if (!registryHasSimple) assert.match(manifest.version, /^0\.8[1-6]\./u);
-  const sideCaller = registryHasSimple ? registry : modelRuntime;
-  assert.equal(typeof sideCaller.streamSimple, 'function');
-  await modelRuntime.setRuntimeApiKey('anthropic', 'sk-ant-oat-offline');
-  let sidePayloads = 0;
-  let sideResponses = 0;
-  const startSide = wireRequests.length;
-  failConnections = 1;
-  const side = await sideCaller
-    .streamSimple(target, context, {
-      reasoning: 'low',
-      cacheRetention: 'none',
-      maxRetries: 1,
-      onPayload: () => {
-        sidePayloads += 1;
-      },
-      onResponse: () => {
-        sideResponses += 1;
-      },
-    })
-    .result();
-  assert.equal(side.stopReason, 'stop', side.errorMessage);
-  assert.equal(
-    side.diagnostics.find((d) => d.type === 'anthropic-connection-retry').details.retries_scheduled,
-    1,
-  );
-  assert.equal(sidePayloads, 1);
-  assert.equal(sideResponses, 1);
-  assert.equal(wireRequests.length, startSide + 2);
-  assert.deepEqual(wireRequests[startSide], wireRequests[startSide + 1]);
-  checkPayload(requests.at(-1));
-
-  // The compaction marker must be found after the leading system checkpoint.
-  const summary = {
-    ...user,
-    content:
-      'The conversation history before this point was compacted into the following summary: compacted state',
-  };
-  const compacted = transcriptHost
-    ? { messages: [initial, summary, patch, user] }
-    : { ...context, messages: [summary, user] };
-  const first = await send(ambient, compacted, 'packed-compaction');
-  const lineage = first.diagnostics.find((d) => d.type === 'anthropic-cache-lineage').details;
-  assert.match(lineage.compaction_boundary_sha256, /^[a-f0-9]{64}$/u);
-  assert.equal(lineage.signature_epoch_inherits_prior, false);
-  const next = await send(
-    ambient,
-    { ...compacted, messages: [...compacted.messages, first, user] },
-    'packed-compaction',
-  );
-  assert.equal(requests.at(-1).diagnostics.previous_message_id, first.responseId);
-  assert.equal(
-    next.diagnostics.find((d) => d.type === 'anthropic-cache-lineage').details
-      .signature_epoch_sha256,
-    lineage.signature_epoch_sha256,
-  );
-  childLoader.getExtensions().runtime.invalidate('fixture finished');
 
   // Exercise real public launch -> task -> verified result, not semantic failure.
   // Only child inference is faked; the parent's registry/projection/artifacts are real.
@@ -581,7 +403,7 @@ else {
   );
   assert.equal((await readFile(fake.logPath, 'utf8')).trim().split('\n').length, 10);
   console.log(
-    `packed transcript runtime PASS: Pi ${manifest.version}; ${transcriptHost ? 'system replay' : 'legacy context'}; ambient + child Anthropic + ${registryHasSimple ? 'ModelRegistry' : 'legacy ModelRuntime'} one-offs/retries; delegate + fusion verified results before/after real compaction`,
+    `packed transcript runtime PASS: Pi ${manifest.version}; ${transcriptHost ? 'system replay' : 'legacy context'}; delegate + fusion verified results before/after real compaction`,
   );
 } finally {
   globalThis.fetch = originalFetch;

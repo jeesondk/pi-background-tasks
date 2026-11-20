@@ -37,20 +37,7 @@
       "state": "stale-authored-prose"
     },
     {
-      "authored_body_sha256": "sha256:29b33aba06223f0af6de3aaa6ff88c4a30c66bcf2fc903364b56d95d05893f47",
-      "covers_sources": [
-        "extensions/anthropic-attribution-child.ts",
-        "extensions/anthropic-attribution.ts",
-        "src/core/anthropic-attribution-path.ts",
-        "src/core/anthropic-attribution.ts"
-      ],
-      "doc_id": "subsystems/anthropic-attribution",
-      "rel": "docs/subsystems/anthropic-attribution.md",
-      "required": true,
-      "state": "missing"
-    },
-    {
-      "authored_body_sha256": "sha256:462e0604e3965782da8aee1f77a113f454d60d905b8e58ecb622b8979d111a00",
+      "authored_body_sha256": "sha256:06f91a8fcb7c2f9570477af12f4dae086f05546d9ad931b81ee6bda25022a282",
       "covers_sources": [
         "src/core/attested-pi-contract.ts",
         "src/core/attested-pi-run.ts"
@@ -91,7 +78,7 @@
       "state": "stale-authored-prose"
     },
     {
-      "authored_body_sha256": "sha256:c0575532208544cb5a669c79d8f7d7491e1fa84f23cec71601090104052bde5e",
+      "authored_body_sha256": "sha256:70b5a24179fbc5a2deec63e77a9048fccc2a2bf0e49a195006a00c5e1ecbbe88",
       "covers_sources": [
         "extensions/delegate-child.ts",
         "src/core/delegate/artifacts.ts",
@@ -115,7 +102,7 @@
       "state": "stale-authored-prose"
     },
     {
-      "authored_body_sha256": "sha256:3210ffce8a17087264157f1ac9c290fd767ea51077b6d0665983407c09815e3e",
+      "authored_body_sha256": "sha256:5250db89e7231f6b9531898c2b8373b546f6f74baec71efbba79a14a434afc9f",
       "covers_sources": [
         "extensions/fusion-child.ts",
         "src/core/fusion/artifacts.ts",
@@ -190,7 +177,6 @@
     "command:bg-clear",
     "command:bg-tasks",
     "command:bg-update",
-    "command:claude-cache",
     "command:fusion",
     "command:fusion-models",
     "command:jobs",
@@ -298,17 +284,6 @@
       "rel": "docs/commands/bg-update.md",
       "review_policy": "contract",
       "stability": "stable"
-    },
-    "commands/claude-cache": {
-      "audience": "user",
-      "covers_sources": [],
-      "covers_surfaces": [
-        "command:claude-cache"
-      ],
-      "mode": "mixed",
-      "rel": "docs/commands/claude-cache.md",
-      "review_policy": "contract",
-      "stability": "evolving"
     },
     "commands/fusion": {
       "audience": "user",
@@ -476,20 +451,6 @@
       "rel": "docs/reference/shortcuts-and-dock.md",
       "review_policy": "contract",
       "stability": "stable"
-    },
-    "subsystems/anthropic-attribution": {
-      "audience": "maintainer",
-      "covers_sources": [
-        "extensions/anthropic-attribution-child.ts",
-        "extensions/anthropic-attribution.ts",
-        "src/core/anthropic-attribution-path.ts",
-        "src/core/anthropic-attribution.ts"
-      ],
-      "covers_surfaces": [],
-      "mode": "authored",
-      "rel": "docs/subsystems/anthropic-attribution.md",
-      "review_policy": "behavioral",
-      "stability": "evolving"
     },
     "subsystems/attested-pi-runs": {
       "audience": "maintainer",
@@ -760,12 +721,6 @@
       "rel": "docs/commands/bg-update.md"
     },
     {
-      "doc_id": "commands/claude-cache",
-      "generator": "scripts/docs/generate.mjs",
-      "name": "command-contract-claude-cache",
-      "rel": "docs/commands/claude-cache.md"
-    },
-    {
       "doc_id": "commands/fusion",
       "generator": "scripts/docs/generate.mjs",
       "name": "command-contract-fusion",
@@ -923,7 +878,6 @@
       "node": ">=22.19.0"
     },
     "entrypoints": [
-      "./dist/extensions/anthropic-attribution.js",
       "./dist/extensions/background-tasks.js"
     ],
     "files": [
@@ -950,7 +904,6 @@
     "command:bg-clear",
     "command:bg-tasks",
     "command:bg-update",
-    "command:claude-cache",
     "command:fusion",
     "command:fusion-models",
     "command:jobs",
@@ -1017,15 +970,6 @@
         "kind": "command",
         "name": "bg-update",
         "source": "src/extension.ts:832"
-      },
-      {
-        "availability": "feature:attribution",
-        "default_available": true,
-        "description": "Show or set Claude cache retention for this session (short, long, default)",
-        "id": "command:claude-cache",
-        "kind": "command",
-        "name": "claude-cache",
-        "source": "src/core/anthropic-attribution.ts:3608"
       },
       {
         "availability": "feature:fusion",
@@ -1877,12 +1821,6 @@
   },
   "schema_version": "pi-background-tasks.docs-manifest.v2",
   "source_to_docs": {
-    "extensions/anthropic-attribution-child.ts": [
-      "subsystems/anthropic-attribution"
-    ],
-    "extensions/anthropic-attribution.ts": [
-      "subsystems/anthropic-attribution"
-    ],
     "extensions/background-tasks.ts": [
       "subsystems/host-ui-and-telemetry"
     ],
@@ -1891,12 +1829,6 @@
     ],
     "extensions/fusion-child.ts": [
       "subsystems/fusion"
-    ],
-    "src/core/anthropic-attribution-path.ts": [
-      "subsystems/anthropic-attribution"
-    ],
-    "src/core/anthropic-attribution.ts": [
-      "subsystems/anthropic-attribution"
     ],
     "src/core/attested-pi-contract.ts": [
       "subsystems/attested-pi-runs"
@@ -2079,9 +2011,6 @@
     ],
     "command:bg-update": [
       "commands/bg-update"
-    ],
-    "command:claude-cache": [
-      "commands/claude-cache"
     ],
     "command:fusion": [
       "commands/fusion"

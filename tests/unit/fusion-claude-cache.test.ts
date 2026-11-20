@@ -4,13 +4,10 @@ import { Type } from 'typebox';
 import { streamSimple as streamSimpleAnthropic } from '@earendil-works/pi-ai/api/anthropic-messages';
 import type { Context, Model } from '@earendil-works/pi-ai';
 import { isJsonObject, type JsonObject } from '../../src/core/common.js';
-import { rewriteAnthropicRequestPayload } from '../../src/core/anthropic-attribution.js';
 import {
   FUSION_CLAUDE_CACHE_BREAKPOINT_LIMIT,
   FUSION_CLAUDE_CACHE_OBSERVATION_SCHEMA_VERSION,
   FUSION_CLAUDE_CACHE_RETENTION_ENV,
-  FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA,
-  applyFusionClaudePromptCachingScopeHeader,
   nonAnthropicFusionCacheObservation,
   normalizeFusionClaudeCachePayload,
   resolveFusionClaudeCachePolicy,
@@ -174,48 +171,6 @@ void describe('Fusion Claude cache policy', () => {
     assert.match(result.errorMessage ?? '', /captured before transport/);
     assert.ok(isJsonObject(payload));
     assert.deepEqual(controls(payload), [LONG, LONG, LONG, LONG]);
-  });
-
-  void it('preserves the provider call-level none posture through attribution rewrite', () => {
-    const payload: JsonObject = {
-      model: 'claude-opus-4-8',
-      system: [{ type: 'text', text: 'compaction system' }],
-      messages: [{ role: 'user', content: [{ type: 'text', text: 'summarize' }] }],
-    };
-    const rewritten = rewriteAnthropicRequestPayload({
-      payload,
-      ctx: {
-        model: { provider: 'anthropic', id: 'claude-opus-4-8' },
-        sessionManager: {
-          getSessionId: () => '11111111-2222-4333-8444-555555555555',
-          getBranch: () => [],
-        },
-      },
-      account: {
-        deviceId: 'd'.repeat(64),
-        accountUuid: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
-      },
-      env: { [FUSION_CLAUDE_CACHE_RETENTION_ENV]: 'long' },
-    });
-
-    assert.ok(isJsonObject(rewritten));
-    assert.deepEqual(controls(rewritten), []);
-  });
-
-  void it('adds the subscription prompt-caching scope beta exactly once', () => {
-    const headers: Record<string, string | null> = {
-      'Anthropic-Beta': 'claude-code-20250219,oauth-2025-04-20',
-    };
-    assert.equal(applyFusionClaudePromptCachingScopeHeader(headers), true);
-    assert.equal(applyFusionClaudePromptCachingScopeHeader(headers), true);
-    assert.equal(
-      headers['Anthropic-Beta'],
-      `claude-code-20250219,oauth-2025-04-20,${FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA}`,
-    );
-
-    const empty: Record<string, string | null> = {};
-    applyFusionClaudePromptCachingScopeHeader(empty);
-    assert.equal(empty['anthropic-beta'], FUSION_CLAUDE_PROMPT_CACHING_SCOPE_BETA);
   });
 
   void it('supports explicit short and none without adding new breakpoints', () => {

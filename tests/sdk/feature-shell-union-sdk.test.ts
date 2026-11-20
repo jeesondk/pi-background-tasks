@@ -31,7 +31,6 @@ import {
   BG_RESPONSE_SCHEMA,
 } from '../../src/core/extension-api.js';
 
-const ambientAttributionPath = resolve('extensions/anthropic-attribution.ts');
 const backgroundPath = resolve('extensions/background-tasks.ts');
 const PROVIDER = 'pi-bg-feature-shell-union';
 const MODEL_ID = 'feature-shell-union-model';
@@ -73,7 +72,6 @@ const ALL_PACKAGE_TOOLS = [
 ] as const;
 const ALL_PACKAGE_COMMANDS = [
   ...PROCESS_COMMANDS,
-  'claude-cache',
   'fusion',
   'fusion-models',
 ] as const;
@@ -296,17 +294,6 @@ async function terminalMetadata(path: string): Promise<JsonObject> {
   throw new Error(`Timed out waiting for terminal metadata ${path}: ${String(lastError ?? '')}`);
 }
 
-function attributionClaimCount(eventBus: EventBus): number {
-  let count = 0;
-  eventBus.emit('pi-anthropic-attribution:claim:v1', {
-    schema_version: 'pi-anthropic-attribution.claim.v1',
-    acknowledge: () => {
-      count += 1;
-    },
-  });
-  return count;
-}
-
 function registeredCommands(session: AgentSession): string[] {
   return sorted(
     session.extensionRunner.getRegisteredCommands().map((command) => command.invocationName),
@@ -362,7 +349,7 @@ async function exerciseActivation(options: {
 
 void describe('C1a capability selection + C1b shell policy union', { concurrency: false }, () => {
   void it(
-    'preserves inventory, attribution, cooperative guidance, and real spawn across full → process → delegate reload',
+    'preserves inventory, cooperative guidance, and real spawn across full → process → delegate reload',
     { timeout: 30_000 },
     async (t) => {
       if (process.platform === 'win32') {
@@ -406,7 +393,7 @@ void describe('C1a capability selection + C1b shell policy union', { concurrency
           agentDir,
           settingsManager,
           eventBus,
-          additionalExtensionPaths: [ambientAttributionPath, backgroundPath],
+          additionalExtensionPaths: [backgroundPath],
           extensionFactories: [unionPeerAndProviderExtension(observations)],
           noExtensions: true,
           noSkills: true,
@@ -436,11 +423,7 @@ void describe('C1a capability selection + C1b shell policy union', { concurrency
 
         assert.deepEqual(registeredPackageTools(session), sorted(ALL_PACKAGE_TOOLS));
         assert.deepEqual(registeredCommands(session), sorted(ALL_PACKAGE_COMMANDS));
-        assert.equal(attributionClaimCount(eventBus), 1);
-        assert.equal(
-          typeof modelRuntime.getRegisteredProviderConfig('anthropic')?.streamSimple,
-          'function',
-        );
+        assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
         await exerciseActivation({
           session,
           eventBus,
@@ -458,7 +441,6 @@ void describe('C1a capability selection + C1b shell policy union', { concurrency
         await session.reload();
         assert.deepEqual(registeredPackageTools(session), sorted(PROCESS_TOOLS));
         assert.deepEqual(registeredCommands(session), sorted(PROCESS_COMMANDS));
-        assert.equal(attributionClaimCount(eventBus), 0);
         assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
         assert.ok(modelRuntime.getProvider('anthropic'), 'the built-in Anthropic provider must survive');
         await exerciseActivation({
@@ -479,7 +461,6 @@ void describe('C1a capability selection + C1b shell policy union', { concurrency
         const delegateTools = [...PROCESS_TOOLS, 'bg_delegate', 'bg_result'];
         assert.deepEqual(registeredPackageTools(session), sorted(delegateTools));
         assert.deepEqual(registeredCommands(session), sorted(PROCESS_COMMANDS));
-        assert.equal(attributionClaimCount(eventBus), 0);
         assert.equal(modelRuntime.getRegisteredProviderConfig('anthropic'), undefined);
         assert.equal(session.model?.provider, PROVIDER, 'the scripted provider route must survive reload');
         await exerciseActivation({

@@ -66,7 +66,7 @@ There is no universally best assignment. Use only routes currently listed as ava
 
 Context capacity can outweigh nominal model strength. Each candidate sees the canonical input; the evaluator fans in that input plus three bounded candidate outputs; the merger additionally receives the validated evaluation. Conditional repair has the widest evaluator input because it also includes the invalid evaluation and validation errors. Fusion measures each rendered stage against that slot's route before launch, so a stronger small-context route can still be unusable. See [Fusion runtime limits](../operations/configuration.md#fusion-runtime-limits) and [budget behavior](../subsystems/fusion.md#budgets-and-output-contracts).
 
-For frontier models, every role must remain on Pi's Anthropic or Codex subscription OAuth channel. Here “expensive” can mean latency, subscription quota, and token/context use; it is not permission to move a role to a metered API route.
+Any model configured in Pi may be used for any role, including API-key routes. Here “expensive” can mean latency, token cost, and context use.
 
 ## Slots are not calls
 
@@ -107,7 +107,7 @@ Saves are durable and revision-safe: the parent captures the file revision hash 
 
 ## Route admission
 
-At run time every slot is resolved through the available model registry. Frontier routes are accepted only through the Pi subscription OAuth path for `anthropic` or `openai-codex` and only on trusted subscription endpoints. Direct OpenAI/OpenRouter/Azure/frontier API-key routes, endpoint/header overrides of subscription auth, unavailable models, missing current model, and missing positive context windows fail before child creation. There is no fallback, model substitution, or tier bump.
+At run time every slot is resolved through the available model registry. Unavailable models, missing current model, and missing positive context windows fail before child creation. There is no fallback, model substitution, or tier bump.
 
 ## Related
 
